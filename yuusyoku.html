@@ -1,0 +1,4868 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>夕食献立自動作成アプリ</title>
+  <style>
+    /* ========== リセット・ベース ========== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', 'Yu Gothic', sans-serif;
+      background: #f2f4f0;
+      color: #333;
+      min-height: 100vh;
+      font-size: 15px;
+    }
+
+    /* ========== ヘッダー ========== */
+    header {
+      background: linear-gradient(135deg, #4a7c59, #2d5a3c);
+      color: #fff;
+      padding: 22px 24px 18px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 1.7rem; letter-spacing: 1px; }
+    header p  { font-size: 0.88rem; opacity: 0.82; margin-top: 5px; }
+
+    /* ========== レイアウト全体 ========== */
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 22px 18px 40px;
+    }
+
+    /* ========== コントロール行 ========== */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .btn-primary {
+      background: #4a7c59;
+      color: #fff;
+      border: none;
+      padding: 13px 32px;
+      font-size: 1.05rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      box-shadow: 0 3px 8px rgba(74,124,89,0.4);
+      transition: background 0.18s, transform 0.1s;
+    }
+    .btn-primary:hover  { background: #3a6647; }
+    .btn-primary:active { transform: scale(0.97); }
+
+    .btn-secondary {
+      background: #fff;
+      color: #666;
+      border: 1px solid #ccc;
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-secondary:hover { background: #f0f0f0; }
+
+    .history-info {
+      font-size: 0.8rem;
+      color: #888;
+      margin-left: auto;
+    }
+
+    /* ========== メイン2カラム ========== */
+    .main-layout {
+      display: flex;
+      gap: 22px;
+      align-items: flex-start;
+    }
+
+    /* ========== 献立カラム ========== */
+    .menu-section { flex: 1; min-width: 0; }
+
+    .week-label {
+      font-size: 0.82rem;
+      color: #888;
+      margin-bottom: 10px;
+      min-height: 1.2em;
+    }
+
+    .days-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ========== 1日カード ========== */
+    .day-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      border-left: 5px solid #4a7c59;
+    }
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .day-label {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #4a7c59;
+    }
+    .btn-replace {
+      background: #eaf2ec;
+      color: #4a7c59;
+      border: 1px solid #b5d4bb;
+      padding: 5px 13px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-replace:hover { background: #d3e9d8; }
+    .btn-replace:active { transform: scale(0.97); }
+
+    /* 料理系統バッジ（和食・洋食・中華） */
+    .day-cuisine-badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: bold;
+      margin-left: 7px;
+      vertical-align: middle;
+    }
+    .cuisine-wa  { background: #e8f0d8; color: #4a6e30; }
+    .cuisine-yo  { background: #e8ecf8; color: #3a5a99; }
+    .cuisine-chu { background: #faeee0; color: #a04010; }
+
+    .dish-list { display: flex; flex-direction: column; gap: 6px; }
+
+    /* 白ご飯固定行 */
+    .rice-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: #fffbe8;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #b07d00;
+      font-weight: 500;
+    }
+
+    /* 各料理行 */
+    .dish-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 10px;
+      background: #f8f8f6;
+      border-radius: 6px;
+      gap: 8px;
+    }
+    .dish-left { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; }
+    .dish-type-badge {
+      font-size: 0.72rem;
+      color: #fff;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .badge-main { background: #4a7c59; }
+    .badge-side { background: #7aab8a; }
+    .badge-soup { background: #c08060; }
+
+    .dish-name {
+      font-size: 0.93rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* サイト名＋URLをまとめるコンテナ */
+    .dish-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .dish-site {
+      font-size: 0.76rem;
+      color: #999;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    /* サイト名とURLの間の区切り文字 */
+    .dish-sep {
+      font-size: 0.72rem;
+      color: #ccc;
+      flex-shrink: 0;
+    }
+    /* URLリンク */
+    .dish-url {
+      font-size: 0.72rem;
+      color: #5a8fcc;
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+      flex-shrink: 1;
+    }
+    .dish-url:hover {
+      text-decoration: underline;
+      color: #2d6faa;
+    }
+
+    /* ========== 空ステート ========== */
+    .empty-state {
+      text-align: center;
+      padding: 50px 20px;
+      color: #bbb;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .empty-icon { font-size: 3.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 1rem; line-height: 1.8; }
+
+    /* ========== 買い物リスト ========== */
+    .shopping-section {
+      width: 290px;
+      min-width: 250px;
+      position: sticky;
+      top: 18px;
+    }
+    .section-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .section-title {
+      font-size: 0.97rem;
+      font-weight: bold;
+      color: #4a7c59;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #deeee2;
+    }
+    .shopping-ul { list-style: none; }
+    .shopping-ul li {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.88rem;
+      gap: 8px;
+    }
+    .shopping-ul li:last-child { border-bottom: none; }
+    .shopping-name { color: #333; }
+    .shopping-qty  { color: #555; font-weight: 500; white-space: nowrap; }
+
+    .shop-empty {
+      text-align: center;
+      color: #bbb;
+      font-size: 0.88rem;
+      padding: 24px 0;
+      line-height: 1.8;
+    }
+
+    /* 買い物リスト：使用曜日ラベル */
+    .shopping-days {
+      font-size: 0.75rem;
+      color: #888;
+      white-space: nowrap;
+      flex-shrink: 0;
+      letter-spacing: 0;
+    }
+
+    /* 昼用固定買い物の（昼）ラベル */
+    .shopping-lunch-tag {
+      color: #c07800;
+      font-weight: 500;
+    }
+
+    /* ========== 買い物リスト カテゴリ見出し ========== */
+    .shop-cat-block { margin-top: 12px; }
+    .shop-cat-block:first-child { margin-top: 0; }
+    .shop-cat-header {
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: #4a7c59;
+      background: #eaf2ec;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 2px;
+    }
+
+    /* ========== 買い物リスト カテゴリ見出し行（追加ボタン付き） ========== */
+    .shop-cat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn-shop-add {
+      background: none;
+      border: 1px solid #9ab8a3;
+      color: #6a9979;
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 1px 7px;
+      border-radius: 4px;
+      line-height: 1.6;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: color 0.13s, background 0.13s, border-color 0.13s;
+    }
+    .btn-shop-add:hover    { color: #4a7c59; background: #d3e9d8; border-color: #4a7c59; }
+    .btn-shop-add.is-open  { color: #4a7c59; background: #d3e9d8; border-color: #4a7c59; }
+
+    /* インライン入力フォーム（分類ごとに表示） */
+    .shop-add-form {
+      background: #f4f9f5;
+      border: 1px solid #c8ddd0;
+      border-radius: 6px;
+      padding: 7px 8px;
+      margin: 5px 0 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .shop-add-form-row {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .ei-input {
+      border: 1px solid #c8ddd0;
+      border-radius: 5px;
+      padding: 4px 7px;
+      font-size: 0.82rem;
+      background: #fff;
+      color: #333;
+      outline: none;
+      transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    .ei-input:focus { border-color: #4a7c59; }
+    .ei-name   { flex: 1; min-width: 0; }
+    .ei-amount { width: 48px; text-align: right; }
+    .ei-unit   { width: 50px; }
+    .btn-extra-confirm {
+      flex-shrink: 0;
+      background: #4a7c59;
+      color: #fff;
+      border: none;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-extra-confirm:hover { background: #3a6647; }
+    .btn-extra-cancel {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid #ccc;
+      color: #888;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-extra-cancel:hover { background: #f0f0f0; }
+
+    /* 手動追加アイテムの削除ボタン */
+    .btn-extra-del {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid #e8d4d4;
+      color: #c9a4a4;
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      line-height: 1.6;
+      transition: color 0.13s, background 0.13s, border-color 0.13s;
+    }
+    .btn-extra-del:hover { color: #b94040; background: #fdecea; border-color: #b94040; }
+
+    /* ========== 買い物リスト項目の数量変更・削除ボタン ========== */
+    .shop-item-actions {
+      display: flex !important;
+      align-items: center;
+      gap: 3px;
+      flex-wrap: nowrap;
+    }
+    .btn-shop-qty-edit {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid #c8ddd0;
+      color: #6a9979;
+      cursor: pointer;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      line-height: 1.6;
+      transition: color 0.13s, background 0.13s, border-color 0.13s;
+    }
+    .btn-shop-qty-edit:hover { color: #4a7c59; background: #d3e9d8; border-color: #4a7c59; }
+    .btn-shop-item-del {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid #e8d4d4;
+      color: #c9a4a4;
+      cursor: pointer;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      line-height: 1.6;
+      transition: color 0.13s, background 0.13s, border-color 0.13s;
+    }
+    .btn-shop-item-del:hover { color: #b94040; background: #fdecea; border-color: #b94040; }
+
+    /* 手動追加バッジ */
+    .badge-manual {
+      font-size: 0.65rem;
+      color: #7aab8a;
+      border: 1px solid #b5d4bb;
+      border-radius: 3px;
+      padding: 0 4px;
+      margin-left: 4px;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    /* ========== 自分の献立追加エリア ========== */
+    .custom-section {
+      margin-bottom: 24px;
+    }
+
+    /* トグルボタン行 */
+    .custom-toggle-row {
+      margin-bottom: 10px;
+    }
+    .btn-toggle-custom {
+      background: #eaf2ec;
+      color: #4a7c59;
+      border: 1px solid #b5d4bb;
+      padding: 9px 20px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      letter-spacing: 0.3px;
+    }
+    .btn-toggle-custom:hover { background: #d3e9d8; }
+
+    /* カスタムエリアの展開コンテンツ */
+    .custom-content {
+      display: none; /* 初期は折りたたみ */
+    }
+    .custom-content.is-open {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    /* カスタムレシピ入力フォームカード */
+    .custom-form-card {
+      flex: 1;
+      min-width: 320px;
+    }
+
+    /* フォーム行 */
+    .form-row {
+      margin-bottom: 13px;
+    }
+    .form-row-inline {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .form-row-inline > div {
+      flex: 1;
+      min-width: 120px;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.83rem;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 5px;
+    }
+    .form-required {
+      color: #d04040;
+      margin-left: 2px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #4a7c59;
+      box-shadow: 0 0 0 2px rgba(74,124,89,0.15);
+    }
+    .form-select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      background: #fff;
+      cursor: pointer;
+    }
+    .form-select:focus {
+      outline: none;
+      border-color: #4a7c59;
+    }
+
+    /* 食材行エリア */
+    .ingredient-rows-wrap {
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fafafa;
+      margin-bottom: 8px;
+    }
+    .ingredient-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 7px;
+    }
+    .ingredient-row:last-child { margin-bottom: 0; }
+    .ing-name   { flex: 2; }
+    .ing-amount { flex: 0 0 70px; }
+    .ing-unit   { flex: 0 0 70px; }
+    .ing-empty {
+      font-size: 0.82rem;
+      color: #bbb;
+      padding: 8px 0;
+      text-align: center;
+    }
+
+    /* 食材追加・行削除ボタン */
+    .btn-add-row {
+      background: #e8f4ea;
+      color: #4a7c59;
+      border: 1px dashed #8dba98;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-add-row:hover { background: #d3e9d8; }
+    .btn-del-row {
+      background: #fff0f0;
+      color: #c04040;
+      border: 1px solid #e8b0b0;
+      padding: 5px 8px;
+      font-size: 0.78rem;
+      border-radius: 5px;
+      cursor: pointer;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .btn-del-row:hover { background: #ffdada; }
+
+    /* フォーム操作ボタン行 */
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .btn-sm {
+      padding: 9px 20px;
+      font-size: 0.88rem;
+    }
+    .btn-primary.btn-sm {
+      padding: 9px 20px;
+      font-size: 0.88rem;
+      font-weight: bold;
+    }
+
+    /* 登録済みカスタムレシピ一覧カード */
+    .custom-list-card {
+      width: 340px;
+      min-width: 280px;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    /* カスタムレシピ1件 */
+    .custom-item {
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      background: #fafafa;
+    }
+    .custom-item:last-child { margin-bottom: 0; }
+    .custom-item-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+    .custom-item-name {
+      font-weight: bold;
+      font-size: 0.92rem;
+      flex: 1;
+    }
+    .custom-item-meta {
+      font-size: 0.78rem;
+      color: #777;
+      margin-bottom: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .custom-item-source a {
+      color: #5a8fcc;
+      text-decoration: none;
+    }
+    .custom-item-source a:hover { text-decoration: underline; }
+    .custom-item-ings {
+      color: #999;
+    }
+    .custom-item-actions {
+      display: flex;
+      gap: 7px;
+    }
+    .btn-edit-custom {
+      background: #eaf2ec;
+      color: #4a7c59;
+      border: 1px solid #b5d4bb;
+      padding: 4px 12px;
+      font-size: 0.78rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-edit-custom:hover { background: #d3e9d8; }
+    .btn-del-custom {
+      background: #fff0f0;
+      color: #c04040;
+      border: 1px solid #e8b0b0;
+      padding: 4px 12px;
+      font-size: 0.78rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-del-custom:hover { background: #ffdada; }
+
+    /* カスタムレシピの「カスタム」バッジ */
+    .badge-custom {
+      font-size: 0.62rem;
+      background: #8a6faa;
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    /* ========== レスポンシブ ========== */
+    @media (max-width: 800px) {
+      .main-layout      { flex-direction: column; }
+      .shopping-section { width: 100%; position: static; }
+      .custom-content.is-open { flex-direction: column; }
+      .custom-list-card { width: 100%; }
+    }
+
+    /* ========== 曜日ヘッダーのボタン群 ========== */
+    .day-header-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    /* ========== 料理行ごとの「↺」差し替えボタン ========== */
+    .btn-replace-dish {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid #d8e8dc;
+      color: #9ab8a3;
+      cursor: pointer;
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      transition: color 0.13s, background 0.13s, border-color 0.13s;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+    .btn-replace-dish:hover {
+      color: #4a7c59;
+      background: #eaf2ec;
+      border-color: #4a7c59;
+    }
+
+    /* ========== 品目削除ボタン（×） ========== */
+    .btn-delete-dish {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid #e8d4d4;
+      color: #c9a4a4;
+      cursor: pointer;
+      font-size: 0.72rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.13s, background 0.13s, border-color 0.13s;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+    .btn-delete-dish:hover {
+      color: #b94040;
+      background: #fdecea;
+      border-color: #b94040;
+    }
+
+    /* ========== 品目追加行（主菜・副菜・汁物） ========== */
+    .add-dish-row {
+      display: flex;
+      justify-content: flex-end;
+      padding: 3px 10px;
+    }
+    .btn-add-dish {
+      background: none;
+      border: 1px dashed #b5d4bb;
+      color: #7aab8a;
+      cursor: pointer;
+      font-size: 0.78rem;
+      padding: 4px 12px;
+      border-radius: 5px;
+      transition: background 0.15s;
+    }
+    .btn-add-dish:hover { background: #eaf2ec; color: #4a7c59; }
+
+
+    /* ========== 部分差し替えモーダル：変更なし項目の確認欄 ========== */
+    .replace-context {
+      font-size: 0.8rem;
+      color: #666;
+      background: #f5f7f5;
+      border-radius: 7px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      line-height: 1.7;
+    }
+    .replace-context-label {
+      font-weight: bold;
+      color: #4a7c59;
+      margin-right: 4px;
+    }
+
+    /* ========== 「この日の献立を消す」ボタン ========== */
+    .btn-clear-day {
+      background: #fff0f0;
+      color: #c04040;
+      border: 1px solid #e8b0b0;
+      padding: 5px 10px;
+      font-size: 0.78rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-clear-day:hover  { background: #ffdada; }
+    .btn-clear-day:active { transform: scale(0.97); }
+
+    /* ========== 「ランダム変更」ボタン ========== */
+    .btn-random-day {
+      background: #fff5e0;
+      color: #b07800;
+      border: 1px solid #e8c870;
+      padding: 5px 13px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-random-day:hover  { background: #ffe9a8; }
+    .btn-random-day:active { transform: scale(0.97); }
+
+    /* ========== 献立なし（消去済み）状態 ========== */
+    .day-card.is-cleared {
+      border-left-color: #ccc;
+    }
+    .cleared-notice {
+      text-align: center;
+      padding: 20px 0;
+      color: #bbb;
+      font-size: 0.92rem;
+      font-style: italic;
+      letter-spacing: 0.3px;
+    }
+
+    /* ========== 差し替えモーダル ========== */
+
+    /* オーバーレイ（背景暗転） */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    /* モーダル本体 */
+    .modal-box {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+      width: 100%;
+      max-width: 720px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* モーダルヘッダー */
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 2px solid #deeee2;
+      flex-shrink: 0;
+    }
+    .modal-header-title {
+      font-size: 1.05rem;
+      font-weight: bold;
+      color: #4a7c59;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: #aaa;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .modal-close:hover { background: #f0f0f0; color: #555; }
+
+    /* モーダル本体スクロールエリア */
+    .modal-body {
+      overflow-y: auto;
+      padding: 14px 20px;
+      flex: 1;
+    }
+
+    /* コース別セクション（主菜 / 副菜 / 汁物） */
+    .replace-course-section {
+      margin-bottom: 18px;
+    }
+    .replace-course-section:last-child { margin-bottom: 0; }
+
+    .replace-course-title {
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #4a7c59;
+      background: #eaf2ec;
+      padding: 4px 10px;
+      border-radius: 5px;
+      margin-bottom: 8px;
+    }
+
+    /* グループラベル（自動候補 / 自分の献立） */
+    .replace-group-label {
+      font-size: 0.72rem;
+      color: #aaa;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      margin: 8px 0 4px 4px;
+      text-transform: uppercase;
+    }
+
+    /* 候補アイテムのグリッド */
+    .replace-candidates {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    /* 候補1件 */
+    .replace-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 11px;
+      border: 1.5px solid #e4e4e4;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #fafafa;
+      transition: border-color 0.14s, background 0.14s;
+      user-select: none;
+    }
+    .replace-item:hover {
+      border-color: #8dbf9a;
+      background: #f2fbf4;
+    }
+    /* 選択中スタイル */
+    .replace-item.is-selected {
+      border-color: #4a7c59;
+      background: #eaf2ec;
+      box-shadow: 0 0 0 2px rgba(74,124,89,0.18);
+    }
+    /* 現在の献立アイテム */
+    .replace-item.is-current {
+      border-color: #c0c0c0;
+      background: #f5f5f5;
+    }
+
+    /* チェックアイコン（選択時に表示） */
+    .replace-item-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid #ccc;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      color: transparent;
+      transition: border-color 0.14s, background 0.14s;
+    }
+    .replace-item.is-selected .replace-item-check {
+      border-color: #4a7c59;
+      background: #4a7c59;
+      color: #fff;
+    }
+
+    /* アイテム情報エリア */
+    .replace-item-info { flex: 1; min-width: 0; }
+    .replace-item-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .replace-item-meta {
+      font-size: 0.72rem;
+      color: #999;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 「なし」アイテム（汁物のみ） */
+    .replace-item-none .replace-item-name { color: #999; font-style: italic; }
+
+    /* カスタムバッジ（モーダル内） */
+    .badge-custom-sm {
+      font-size: 0.62rem;
+      background: #8a6faa;
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: bold;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    /* 現在表示バッジ */
+    .badge-current-sm {
+      font-size: 0.62rem;
+      background: #bbb;
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: bold;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* 固定副菜の通知バー（差し替えモーダル内） */
+    .fixed-side-notice {
+      background: #fff8e4;
+      border: 1px solid #e8d070;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 0.82rem;
+      color: #7a5800;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .fixed-side-notice strong { font-weight: bold; }
+
+    /* モーダルフッター */
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 12px 20px 16px;
+      border-top: 1px solid #eee;
+      flex-shrink: 0;
+    }
+
+    /* ========== 印刷対応 ========== */
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm;
+    }
+
+    @media print {
+      /* --- 非表示にするUI要素 --- */
+      .controls,
+      header p,
+      .custom-section,
+      .modal-overlay {
+        display: none !important;
+      }
+
+      /* --- ベース --- */
+      body {
+        background: #fff;
+        color: #000;
+        font-size: 11px;
+        min-height: unset;
+      }
+
+      /* --- ヘッダー --- */
+      header {
+        background: none !important;
+        color: #000;
+        padding: 6px 0 6px;
+        box-shadow: none;
+        border-bottom: 2px solid #333;
+        text-align: left;
+      }
+      header h1 { font-size: 1rem; color: #000; }
+
+      /* --- コンテナ --- */
+      .container {
+        max-width: 100%;
+        padding: 6px 0 0;
+      }
+
+      /* --- 2カラムレイアウト（横並びを維持） --- */
+      .main-layout {
+        flex-direction: row;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .menu-section { flex: 1.4; min-width: 0; }
+      .shopping-section {
+        width: 185px;
+        min-width: 170px;
+        position: static;
+      }
+
+      /* --- 献立グリッド --- */
+      .days-grid { gap: 5px; }
+
+      /* --- 1日カード --- */
+      .day-card {
+        background: #fff;
+        border-radius: 0;
+        padding: 5px 7px;
+        box-shadow: none;
+        border: 1px solid #bbb;
+        border-left: 3px solid #333;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .day-header { margin-bottom: 5px; }
+      .day-label  { color: #000; font-size: 0.85rem; }
+
+      /* --- 差し替えボタン・消すボタン・系統バッジ（印刷時非表示） --- */
+      .btn-replace       { display: none !important; }
+      .btn-clear-day     { display: none !important; }
+      .btn-random-day    { display: none !important; }
+      .btn-replace-dish  { display: none !important; }
+      .btn-delete-dish   { display: none !important; }
+      .add-dish-row      { display: none !important; }
+      .day-cuisine-badge { display: none !important; }
+
+      /* --- 献立なし表示（印刷時） --- */
+      .cleared-notice {
+        text-align: center;
+        padding: 8px 0;
+        color: #888;
+        font-size: 0.8rem;
+        font-style: italic;
+      }
+
+      /* --- 料理行 --- */
+      .dish-list { gap: 3px; }
+      .rice-row {
+        background: none;
+        border: 1px solid #ddd;
+        color: #000;
+        padding: 3px 6px;
+        font-size: 0.78rem;
+        border-radius: 0;
+      }
+      .dish-row {
+        background: none;
+        border: 1px solid #e0e0e0;
+        padding: 3px 6px;
+        border-radius: 0;
+      }
+
+      /* --- バッジ（白黒） --- */
+      .dish-type-badge {
+        background: none !important;
+        color: #000 !important;
+        border: 1px solid #555;
+        font-size: 0.62rem;
+        padding: 1px 4px;
+        border-radius: 2px;
+      }
+      .dish-name { font-size: 0.8rem; }
+
+      /* --- サイト名：印刷時に表示。URLリンクのみ非表示 --- */
+      /* ※ dish-info ごと非表示にしていたためサイト名も消えていた → 修正 */
+      .dish-info {
+        display: flex;       /* 非表示を解除 */
+        align-items: center;
+        flex-shrink: 0;
+        max-width: 130px;    /* A4印刷幅内に収まるよう上限を設定 */
+        overflow: hidden;
+      }
+      .dish-site {
+        font-size: 0.68rem;
+        color: #000;          /* 白黒印刷で確実に読めるよう黒に */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+      /* URLリンクと区切り文字は印刷不要なので引き続き非表示 */
+      .dish-sep,
+      .dish-url {
+        display: none !important;
+      }
+
+      /* --- 買い物リストカード --- */
+      .section-card {
+        background: #fff;
+        border: 1px solid #bbb;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 7px;
+      }
+      .section-title {
+        color: #000;
+        font-size: 0.85rem;
+        border-bottom: 1.5px solid #333;
+        padding-bottom: 4px;
+        margin-bottom: 7px;
+      }
+
+      /* --- カテゴリ見出し --- */
+      .shop-cat-block { margin-top: 7px; }
+      .shop-cat-header {
+        background: none;
+        color: #000;
+        font-size: 0.7rem;
+        padding: 1px 0;
+        border-bottom: 1px solid #aaa;
+        border-radius: 0;
+        margin-bottom: 2px;
+      }
+
+      /* --- 買い物リスト行 --- */
+      .shopping-ul li {
+        font-size: 0.75rem;
+        padding: 2px 0;
+        border-bottom: 1px dotted #ddd;
+      }
+      .shopping-name, .shopping-qty { color: #000; }
+      .shopping-days {
+        font-size: 0.65rem;
+        color: #444;
+      }
+
+      /* --- 週ラベル --- */
+      .week-label {
+        font-size: 0.75rem;
+        color: #555;
+        margin-bottom: 5px;
+      }
+
+      /* --- 追加で買うもの（印刷時） --- */
+      .btn-shop-add        { display: none !important; }
+      .shop-add-form       { display: none !important; }
+      .btn-extra-del       { display: none !important; }
+      .badge-manual        { display: none !important; }
+      .btn-shop-qty-edit   { display: none !important; }
+      .btn-shop-item-del   { display: none !important; }
+      .shop-cat-header     { display: block; }
+    }
+
+    /* ========== 主菜・副菜を追加ボタン（曜日ヘッダー内） ========== */
+    .btn-add-course {
+      background: #eaf2ec;
+      color: #4a7c59;
+      border: 1px dashed #8dba98;
+      padding: 5px 11px;
+      font-size: 0.78rem;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-add-course:hover  { background: #d3e9d8; border-style: solid; }
+    .btn-add-course:active { transform: scale(0.97); }
+    @media print {
+      .btn-add-course { display: none !important; }
+    }
+
+    /* ========== 種別バッジ（手動フリー選択モーダル内） ========== */
+    .badge-type-sm {
+      font-size: 0.62rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: bold;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge-type-main { background: #4a7c59; color: #fff; }
+    .badge-type-side { background: #7aab8a; color: #fff; }
+    .badge-type-soup { background: #c08060; color: #fff; }
+  </style>
+</head>
+<body>
+
+<!-- ===== ヘッダー ===== -->
+<header>
+  <h1>🍚 夕食献立自動作成アプリ</h1>
+  <p>4人家族（子ども2人・大人2人）／月〜金の5日分夕食</p>
+</header>
+
+<div class="container">
+
+  <!-- ===== 操作ボタン ===== -->
+  <div class="controls">
+    <button class="btn-primary" onclick="onClickGenerate()">献立を作成</button>
+    <button class="btn-secondary" onclick="onClickClearHistory()">履歴を消す</button>
+    <button class="btn-secondary" onclick="window.print()">🖨️ 印刷</button>
+    <span class="history-info" id="historyInfo"></span>
+  </div>
+
+  <!-- ===== 自分の献立追加エリア ===== -->
+  <div class="custom-section" id="customSection">
+    <div class="custom-toggle-row">
+      <button class="btn-toggle-custom" onclick="toggleCustomSection()">
+        ＋ 自分の献立を追加・管理
+      </button>
+    </div>
+
+    <!-- 展開コンテンツ（初期非表示） -->
+    <div class="custom-content" id="customContent">
+
+      <!-- 入力フォームカード -->
+      <div class="section-card custom-form-card">
+        <div class="section-title">📝 自分の献立を登録</div>
+
+        <!-- 料理名 -->
+        <div class="form-row">
+          <label class="form-label" for="cf-name">
+            料理名 <span class="form-required">*</span>
+          </label>
+          <input type="text" id="cf-name" class="form-input"
+                 placeholder="例：豚の角煮">
+        </div>
+
+        <!-- 種別 / 系統 / 出典種別 -->
+        <div class="form-row form-row-inline">
+          <div>
+            <label class="form-label" for="cf-type">種別</label>
+            <select id="cf-type" class="form-select">
+              <option value="主菜">主菜</option>
+              <option value="副菜">副菜</option>
+              <option value="汁物">汁物</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="cf-cuisine">系統</label>
+            <select id="cf-cuisine" class="form-select">
+              <option value="">自動判定</option>
+              <option value="和">和食</option>
+              <option value="洋">洋食</option>
+              <option value="中">中華</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="cf-source-type">出典種別</label>
+            <select id="cf-source-type" class="form-select"
+                    onchange="onChangeSourceType()">
+              <option value="サイト">サイト</option>
+              <option value="本">本</option>
+              <option value="オリジナル">オリジナル</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 本・サイト名 -->
+        <div class="form-row" id="cf-source-name-row">
+          <label class="form-label" id="cf-source-name-label"
+                 for="cf-source-name">サイト名</label>
+          <input type="text" id="cf-source-name" class="form-input"
+                 placeholder="例：白ごはん.com">
+        </div>
+
+        <!-- URL / ページ数 -->
+        <div class="form-row" id="cf-url-row">
+          <label class="form-label" id="cf-url-label"
+                 for="cf-url">URL</label>
+          <input type="text" id="cf-url" class="form-input"
+                 placeholder="例：https://...">
+        </div>
+
+        <!-- 食材リスト -->
+        <div class="form-row">
+          <label class="form-label">買うものリスト（食材）</label>
+          <div class="ingredient-rows-wrap">
+            <div id="cf-ingredients">
+              <p class="ing-empty">「食材を追加」ボタンで食材を登録できます</p>
+            </div>
+          </div>
+          <button class="btn-add-row" onclick="onAddIngredientRow()">
+            ＋ 食材を追加
+          </button>
+        </div>
+
+        <!-- アクションボタン -->
+        <div class="form-actions">
+          <button class="btn-primary btn-sm" id="cf-submit-btn"
+                  onclick="onSubmitCustomRecipe()">登録</button>
+          <button class="btn-secondary btn-sm" id="cf-update-btn"
+                  style="display:none"
+                  onclick="onUpdateCustomRecipe()">更新</button>
+          <button class="btn-secondary btn-sm"
+                  onclick="onClearCustomForm()">クリア</button>
+        </div>
+      </div><!-- /custom-form-card -->
+
+      <!-- 登録済みカスタムレシピ一覧カード -->
+      <div class="section-card custom-list-card">
+        <div class="section-title">📋 登録済み自分献立</div>
+        <div id="customRecipeList">
+          <p class="shop-empty">まだ登録されていません</p>
+        </div>
+      </div>
+
+    </div><!-- /custom-content -->
+  </div><!-- /custom-section -->
+
+  <!-- ===== 2カラム: 献立 + 買い物リスト ===== -->
+  <div class="main-layout">
+
+    <!-- 献立カード列 -->
+    <div class="menu-section">
+      <div class="week-label" id="weekLabel"></div>
+      <div class="days-grid" id="daysGrid">
+        <div class="empty-state">
+          <div class="empty-icon">🍳</div>
+          <p>「献立を作成」ボタンを押して<br>今週の夕食献立を作りましょう</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 買い物リスト -->
+    <div class="shopping-section">
+      <div class="section-card">
+        <div class="section-title">🛒 今週の買い物リスト</div>
+        <div id="shoppingList">
+          <p class="shop-empty">献立を作成すると<br>自動で表示されます</p>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /main-layout -->
+</div><!-- /container -->
+
+<!-- ===== 差し替えモーダル ===== -->
+<div id="replaceModal" class="modal-overlay" style="display:none"
+     onclick="onClickModalOverlay(event)">
+  <div class="modal-box">
+
+    <!-- ヘッダー -->
+    <div class="modal-header">
+      <span class="modal-header-title" id="modalTitle">献立を差し替え</span>
+      <button class="modal-close" onclick="closeReplaceModal()" title="閉じる">✕</button>
+    </div>
+
+    <!-- コース別候補リスト（JS で描画） -->
+    <div class="modal-body" id="modalBody"></div>
+
+    <!-- フッター（確定 / キャンセル） -->
+    <div class="modal-footer">
+      <button id="applyReplaceBtn" class="btn-primary btn-sm" onclick="applyReplaceSelection()">
+        この内容で差し替え
+      </button>
+      <button class="btn-secondary btn-sm" onclick="closeReplaceModal()">
+        キャンセル
+      </button>
+    </div>
+
+  </div>
+</div><!-- /replaceModal -->
+
+<script>
+'use strict';
+
+// ============================================================
+// 定数
+// ============================================================
+
+/** 表示用の曜日ラベル */
+const DAYS = ['月曜日', '火曜日', '水曜日', '木曜日', '金曜日'];
+
+/** 買い物リストの曜日表記用短縮ラベル */
+const DAY_SHORT = ['月', '火', '水', '木', '金'];
+
+/**
+ * 特別ルール適用曜日インデックス（0=月, 1=火, 2=水, 3=木, 4=金）
+ * TUE_INDEX : 火曜日 ─ カレー・ハヤシライス・シチュー系を固定する曜日
+ */
+const TUE_INDEX = 1;
+
+/**
+ * カレー・ハヤシライス・シチュー系かどうかを判定する
+ * tuesdayOnly フラグ OR 料理名に対象ワードが含まれる場合 true を返す
+ * カスタムレシピ（フラグなし）も料理名で確実に判定するための二重チェック
+ * @param {object} recipe
+ * @returns {boolean}
+ */
+function isTuesdayOnly(recipe) {
+  if (recipe.tuesdayOnly) return true;
+  const name = (recipe.name || '').replace(/\s+/g, '');
+  return /カレー|ハヤシ|シチュー/.test(name);
+}
+
+/**
+ * 主菜に対して固定副菜を返す
+ *
+ * 固定ルール：
+ *   カレー系・ハヤシライス系 → ポテトサラダ (s09)
+ *   シチュー系               → ローストビーフ (s25)
+ *
+ * 自作メニューに同名の副菜がある場合はそちらを優先して返す。
+ *
+ * @param {object|null} mainRecipe  主菜レシピオブジェクト
+ * @param {Array}       allRecipes  全レシピ配列（getAllRecipes() の戻り値）
+ * @returns {object|null} 固定副菜レシピ、または null（固定不要）
+ */
+function getFixedSide(mainRecipe, allRecipes) {
+  if (!mainRecipe) return null;
+  const name = (mainRecipe.name || '').replace(/\s+/g, '');
+  let fixedName = null;
+  let fallbackId = null;
+  if (/カレー|ハヤシ/.test(name)) {
+    fixedName  = 'ポテトサラダ';
+    fallbackId = 's09';
+  } else if (/シチュー/.test(name)) {
+    fixedName  = 'ローストビーフ';
+    fallbackId = 's25';
+  }
+  if (!fixedName) return null;
+
+  // 自作に同名の副菜があればそちらを優先
+  const normalFixed = normalizeMenuName(fixedName);
+  const customMatch = allRecipes.find(
+    r => r.isCustom && r.type === '副菜' && normalizeMenuName(r.name) === normalFixed
+  );
+  if (customMatch) return customMatch;
+
+  return allRecipes.find(r => r.id === fallbackId) || null;
+}
+
+/**
+ * レシピの参照URLを返す
+ * @param {object} dish
+ * @returns {string|null}
+ */
+function getRecipeUrl(dish) {
+  return dish.recipeUrl || null;
+}
+
+/**
+ * 使用曜日インデックスのSetを「（月・木）」形式に変換
+ * @param {Set<number>} daysSet
+ * @returns {string}
+ */
+function formatDayLabels(daysSet) {
+  if (!daysSet || daysSet.size === 0) return '';
+  const labels = [...daysSet]
+    .sort((a, b) => a - b)
+    .map(i => DAY_SHORT[i]);
+  return `（${labels.join('・')}）`;
+}
+
+/** localStorage キー名 */
+const KEY_CURRENT        = 'dinner_menu_current';    // 現在の献立
+const KEY_HISTORY        = 'dinner_menu_history';    // 献立履歴
+const KEY_CUSTOM_RECIPES = 'dinner_custom_recipes';  // 自分の献立データ
+const KEY_EXTRA_ITEMS    = 'dinner_extra_items';     // 追加で買うもの
+const KEY_SHOP_OVERRIDES = 'dinner_shop_overrides';  // 買い物リスト手動上書き情報
+
+/**
+ * 買い物リストから除外する調味料・基本食品セット
+ */
+const SEASONINGS = new Set([
+  '塩','醤油','薄口醤油','砂糖','みりん','本みりん',
+  '酒','料理酒','味噌','白みそ','赤みそ','合わせみそ',
+  'ごま油','サラダ油','油','オリーブオイル','バター','マーガリン',
+  '酢','米酢','ポン酢','だしの素','ほんだし','白だし',
+  '和風だし','コンソメ','鶏ガラスープの素',
+  '片栗粉','小麦粉','パン粉',
+  'ケチャップ','マヨネーズ','ウスターソース','中濃ソース','オイスターソース',
+  '豆板醤','甜麺醤','ラー油','焼肉のたれ','めんつゆ','だし醤油',
+  '塩こしょう','黒こしょう','コショウ','七味','山椒',
+  'ごま','白ごま','黒ごま',
+  'にんにくチューブ','生姜チューブ','わさびチューブ','塩麹'
+]);
+
+// ============================================================
+// 買い物リスト カテゴリ分類セット
+// ============================================================
+
+/** 野菜類・きのこ・乾物・こんにゃく類 */
+const VEGGIE_ITEMS = new Set([
+  'にんじん','玉ねぎ','じゃがいも','ほうれん草','小松菜','大根','ネギ','長ねぎ',
+  '白菜','キャベツ','ブロッコリー','アスパラガス','なす','かぼちゃ','もやし',
+  'ニラ','ごぼう','れんこん','里芋','エノキ','しめじ','なめこ','生姜','レモン','ゴーヤ',
+  '切り干し大根','乾燥わかめ','麩',
+  'トマト','ピーマン','パプリカ','セロリ','春菊','水菜','ルッコラ','チンゲン菜',
+  'オクラ','きゅうり','ズッキーニ','さつまいも','ごぼう','長ねぎ',
+  '舞茸','エリンギ','まいたけ','白菜キムチ','カット野菜',
+  'たけのこ','筍'
+]);
+
+/** 魚・肉類 */
+const MEAT_FISH_ITEMS = new Set([
+  '鶏もも肉','鶏むね肉','鶏ひき肉','鶏手羽元','鶏手羽先','手羽元','手羽先','鶏ささみ',
+  '豚ロース薄切り肉','豚バラ薄切り肉','豚こま切れ肉','豚ひき肉','豚ロース肉','豚肩ロース',
+  '牛こま切れ肉','牛ひき肉','牛ロース','合いびき肉',
+  '鮭','さば','ぶり','たら','まぐろ','あじ','かつお','あさり','はまぐり',
+  'えび','海老','むきえび','小えび','いか','するめいか','やりいか',
+  'タコ','たこ','真だこ','ゆでだこ',
+  'ベーコン','ウインナー','ハム','ツナ缶','サバ缶','サーモン',
+  '豚バラ肉','鶏もも','豚ロース'
+]);
+
+/** 豆腐・卵・大豆製品 */
+const TOFU_EGG_ITEMS = new Set([
+  '木綿豆腐','絹ごし豆腐','厚揚げ','油揚げ','高野豆腐','がんもどき',
+  '卵','ゆで卵','納豆','枝豆','大豆（水煮）','おから','豆乳','春雨（豆春雨）'
+]);
+
+/**
+ * 食材名を正規化する（分類・合算キー生成に使用）
+ * - 前後の空白除去
+ * - 全角スペースを除去
+ * - 全角英数を半角に変換（"ｇ" → "g" など）
+ * - カタカナ → ひらがな（"ジャガイモ" → "じゃがいも" など）
+ * @param {string} name
+ * @returns {string}
+ */
+function normalizeIngredientName(name) {
+  return (name || '')
+    .trim()
+    .replace(/\u3000/g, '')           // 全角スペース除去
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c =>  // 全角英数 → 半角
+      String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[\u30A1-\u30F6]/g, c => // カタカナ（ァ〜ヶ）→ ひらがな
+      String.fromCharCode(c.charCodeAt(0) - 0x60))
+    .replace(/\s+/g, '');             // 残った空白をすべて除去
+}
+
+/**
+ * 表示用の軽量正規化（前後・中間の空白除去のみ、カタカナ表記は保持）
+ * @param {string} name
+ * @returns {string}
+ */
+function liteNormalize(name) {
+  return (name || '').trim().replace(/\u3000/g, '').replace(/\s+/g, '');
+}
+
+/**
+ * 料理名の同名判定用正規化（自作メニュー優先に使用）
+ * - 前後空白・全角スペース・中間スペースをすべて除去
+ * @param {string} name
+ * @returns {string}
+ */
+function normalizeMenuName(name) {
+  return (name || '').trim().replace(/[\s\u3000]+/g, '');
+}
+
+/**
+ * よく使われる食材名の略称・カタカナ読み → 標準形マップ
+ * キーは normalizeIngredientName 適用後（ひらがな統一）の文字列
+ * 値は VEGGIE_ITEMS / MEAT_FISH_ITEMS に合わせた標準形
+ */
+const INGREDIENT_SYNONYMS = {
+  // 略称 → 正式名（合算を助ける）
+  '鶏もも':       '鶏もも肉',
+  '鶏むね':       '鶏むね肉',
+  '豚こま':       '豚こま切れ肉',
+  // カタカナ読みがひらがなになった形 → 漢字を含む標準形（分類・合算を助ける）
+  'たまねぎ':     '玉ねぎ',
+  'だいこん':     '大根',
+  'しょうが':     '生姜',
+  'さといも':     '里芋',
+  'ほうれんそう': 'ほうれん草',
+  'たまご':       '卵',
+  // 漢字表記 → ひらがな標準形（kanji は normalizeIngredientName でひらがな変換されないため明示マップ）
+  '人参':         'にんじん',
+};
+
+/**
+ * 合算・分類用の正規化キーを返す（normalizeIngredientName ＋ 同義語適用）
+ * @param {string} name
+ * @returns {string}
+ */
+function getIngredientKey(name) {
+  const n = normalizeIngredientName(name);
+  return INGREDIENT_SYNONYMS[n] ?? n;
+}
+
+/**
+ * 分類判定に使う正規化済みセット
+ * VEGGIE_ITEMS / MEAT_FISH_ITEMS の全要素を normalizeIngredientName で変換済み
+ * → カタカナ表記の入力（'エノキ'→'えのき' 等）でも正しく一致する
+ */
+const VEGGIE_ITEMS_NORM     = new Set([...VEGGIE_ITEMS].map(normalizeIngredientName));
+const MEAT_FISH_ITEMS_NORM  = new Set([...MEAT_FISH_ITEMS].map(normalizeIngredientName));
+
+/**
+ * キーワード部分一致より優先して「その他」に強制分類するキーワード（正規化後比較）
+ * 例：かっととまと缶（缶詰扱い）、ひじき（海藻）
+ * これらは VEGGIE_KW の「トマト」「わかめ」などに部分一致してしまうため、先に除外する
+ */
+const FORCE_OTHER_KW = ['かっととまと缶', 'ひじき'];
+
+/**
+ * 食材名をカテゴリキーに分類する
+ * - 正規化してからセット完全一致 → キーワード部分一致の順で判定
+ * - カテゴリは veggie / meat / other の3種のみ（豆腐・卵はotherに含む）
+ * @param {string} name
+ * @returns {'veggie'|'meat'|'other'}
+ */
+function classifyIngredient(name) {
+  // 正規化＋同義語適用後のキー（ひらがな統一・略称展開済み）
+  const n = getIngredientKey(name);
+
+  // ===== 強制「その他」チェック（セット/キーワード判定より優先） =====
+  // カットトマト缶（缶詰扱い）・ひじき（海藻類）など
+  for (const kw of FORCE_OTHER_KW) { if (n.includes(kw)) return 'other'; }
+
+  // 正規化済みセットで完全一致チェック（カタカナ/ひらがなゆれをまたいで判定）
+  if (VEGGIE_ITEMS_NORM.has(n))    return 'veggie';
+  if (MEAT_FISH_ITEMS_NORM.has(n)) return 'meat';
+
+  // ===== キーワード部分一致（正規化後に比較してカタカナゆれも吸収） =====
+  // 肉・魚キーワード（優先度高め）
+  const MEAT_KW = [
+    '鶏','豚','牛','手羽','ひき肉','ベーコン','ウインナー','ソーセージ','ハム',
+    '鮭','さば','サバ','ぶり','ブリ','たら','タラ','まぐろ','マグロ','あじ','アジ','かつお','カツオ',
+    'あさり','はまぐり',
+    'えび','エビ','海老','いか','イカ','タコ','たこ','カニ','かに','ツナ','サーモン','魚','肉',
+    'さつまあげ','はんぺん'
+  ];
+  // 野菜・きのこキーワード（ひじきは FORCE_OTHER_KW で除外済み）
+  const VEGGIE_KW = [
+    'ねぎ','ニラ','キャベツ','玉ねぎ','にんじん','大根','白菜',
+    'ほうれん草','小松菜','じゃがいも','さつまいも','かぼちゃ',
+    'なす','ピーマン','トマト','きゅうり','もやし','ブロッコリー',
+    'アスパラ','れんこん','ごぼう','里芋','舞茸','しめじ','えのき',
+    'なめこ','マッシュルーム','エリンギ','生姜','レモン','ゴーヤ',
+    'わかめ','ゴボウ','レンコン',
+    'サトイモ','カボチャ','ダイコン','ハクサイ','コマツナ','キュウリ',
+    'なめこ','水菜','春菊','チンゲン菜','オクラ','ズッキーニ','パプリカ',
+    'カット野菜','たけのこ','筍'
+  ];
+
+  // キーワード・入力名ともにひらがなに正規化してから比較
+  for (const kw of MEAT_KW)  { if (n.includes(normalizeIngredientName(kw))) return 'meat';  }
+  for (const kw of VEGGIE_KW){ if (n.includes(normalizeIngredientName(kw))) return 'veggie'; }
+
+  return 'other';
+}
+
+/** 買い物リストのカテゴリ定義（表示順） */
+const SHOP_CATEGORIES = [
+  { key: 'veggie', label: '■ 野菜類' },
+  { key: 'meat',   label: '■ 魚・肉類' },
+  { key: 'other',  label: '■ その他' }
+];
+
+/**
+ * 昼ご飯用の固定買い物アイテム
+ * 献立作成のたびに買い物リストへ1セットだけ追加される
+ * flatMap 内で __lunch__ プレフィックスキーを使うため夕食材料と絶対に合算されない
+ */
+const LUNCH_FIXED_ITEMS = [
+  { name: '鶏胸肉',         amount: 1, unit: '枚',   category: 'meat'   },
+  { name: 'カット野菜',     amount: 1, unit: '袋',   category: 'veggie' },
+  { name: 'しめじ',         amount: 1, unit: '袋',   category: 'veggie' },
+  { name: 'サラダチキン',   amount: 1, unit: '個',   category: 'other'  },
+  { name: 'カニカマ',       amount: 1, unit: 'パック', category: 'other' },
+  { name: 'サラダ用レタス', amount: 1, unit: '袋',   category: 'veggie' },
+];
+
+// ============================================================
+// 料理データベース
+// ※ 白ごはん.com は使用しない。使用サイト：クックパッド / DELISH KITCHEN / Nadia / 楽天レシピ
+//
+// 各フィールド説明:
+//   id          : 一意識別子
+//   name        : 料理名
+//   site        : 参考サイト名（表示用）
+//   recipeUrl   : 個別レシピURL（未設定は '' → リンク非表示）
+//   type        : '主菜' | '副菜' | '汁物'
+//   protein     : 主たんぱく源 '鶏'|'豚'|'牛'|'魚'|null
+//   ingredients : [{name, amount, unit}] ※4人分目安。調味料除く
+//   fried       : true の場合は献立生成から除外
+//   tags        : 特徴タグ配列
+// ============================================================
+const RECIPES = [
+
+  // ===================== 主菜 25品 =====================
+
+  {
+    id: 'm01', name: '鶏もも肉の照り焼き', site: 'クックパッド',
+    recipeUrl: 'https://cookpad.com/jp/recipes/17374037',
+    type: '主菜', protein: '鶏',
+    ingredients: [
+      { name: '鶏もも肉', amount: 2,   unit: '枚' },
+      { name: 'ネギ',     amount: 1,   unit: '本' }
+    ],
+    tags: ['鶏', '子ども向け', '高たんぱく', '時短']
+  },
+  {
+    id: 'm02', name: '豚の生姜焼き', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚ロース薄切り肉', amount: 400, unit: 'g'   },
+      { name: '玉ねぎ',          amount: 1,   unit: '個'  },
+      { name: '生姜',            amount: 1,   unit: 'かけ' }
+    ],
+    tags: ['豚', '子ども向け']
+  },
+  {
+    id: 'm03', name: '鮭の照り焼き', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '主菜', protein: '魚',
+    ingredients: [
+      { name: '鮭',  amount: 4, unit: '切れ' },
+      { name: 'ネギ', amount: 1, unit: '本'   }
+    ],
+    tags: ['魚', '高たんぱく', '時短']
+  },
+  {
+    id: 'm04', name: '肉じゃが', site: 'Nadia',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚こま切れ肉', amount: 200, unit: 'g'  },
+      { name: 'じゃがいも',  amount: 4,   unit: '個' },
+      { name: 'にんじん',    amount: 1,   unit: '本' },
+      { name: '玉ねぎ',      amount: 1,   unit: '個' },
+      { name: '糸こんにゃく', amount: 1,  unit: '袋' }
+    ],
+    tags: ['豚', '子ども向け', '野菜多め']
+  },
+  {
+    id: 'm05', name: 'サラダチキン', site: 'Nadia',
+    recipeUrl: 'https://oceans-nadia.com/user/28/recipe/469468',
+    type: '主菜', protein: '鶏',
+    ingredients: [
+      { name: '鶏むね肉', amount: 2, unit: '枚' }
+    ],
+    tags: ['鶏', '高たんぱく', '時短']
+  },
+  {
+    id: 'm06', name: 'さばの味噌煮', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '魚',
+    ingredients: [
+      { name: 'さば',  amount: 4, unit: '切れ'  },
+      { name: '生姜',  amount: 1, unit: 'かけ'  },
+      { name: 'ネギ',  amount: 1, unit: '本'    }
+    ],
+    tags: ['魚', '高たんぱく']
+  },
+  {
+    id: 'm07', name: 'ゴーヤチャンプルー', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '木綿豆腐',       amount: 1,   unit: '丁' },
+      { name: '豚バラ薄切り肉', amount: 150, unit: 'g'  },
+      { name: 'ゴーヤ',         amount: 1,   unit: '本' },
+      { name: '卵',             amount: 2,   unit: '個' }
+    ],
+    tags: ['豚', '豆腐', '卵', '野菜多め']
+  },
+  {
+    id: 'm08', name: 'ぶり大根', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '主菜', protein: '魚',
+    ingredients: [
+      { name: 'ぶり',  amount: 4, unit: '切れ'  },
+      { name: '大根',  amount: 1, unit: '本'    },
+      { name: '生姜',  amount: 1, unit: 'かけ'  }
+    ],
+    tags: ['魚', '高たんぱく', '野菜多め']
+  },
+  {
+    id: 'm09', name: '鶏じゃが', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '主菜', protein: '鶏',
+    ingredients: [
+      { name: '鶏もも肉',   amount: 2, unit: '枚' },
+      { name: 'じゃがいも', amount: 3, unit: '個' },
+      { name: 'にんじん',   amount: 1, unit: '本' },
+      { name: '玉ねぎ',     amount: 1, unit: '個' }
+    ],
+    tags: ['鶏', '野菜多め', '子ども向け']
+  },
+  {
+    id: 'm10', name: '豚バラと大根の煮物', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚バラ薄切り肉', amount: 300, unit: 'g'   },
+      { name: '大根',           amount: 1,   unit: '本'  },
+      { name: '生姜',           amount: 1,   unit: 'かけ' }
+    ],
+    tags: ['豚', '野菜多め']
+  },
+  {
+    id: 'm11', name: '鮭のホイル焼き', site: 'DELISH KITCHEN',
+    recipeUrl: 'https://delishkitchen.tv/recipes/149625357664780762',
+    type: '主菜', protein: '魚',
+    ingredients: [
+      { name: '鮭',     amount: 4, unit: '切れ' },
+      { name: 'エノキ', amount: 1, unit: '袋'   },
+      { name: '玉ねぎ', amount: 1, unit: '個'   }
+    ],
+    tags: ['魚', '時短', '野菜多め', '子ども向け']
+  },
+  {
+    id: 'm12', name: '鶏肉と根菜の筑前煮', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '主菜', protein: '鶏',
+    ingredients: [
+      { name: '鶏もも肉',   amount: 2, unit: '枚' },
+      { name: 'れんこん',   amount: 1, unit: '節' },
+      { name: 'にんじん',   amount: 1, unit: '本' },
+      { name: 'ごぼう',     amount: 1, unit: '本' },
+      { name: 'こんにゃく', amount: 1, unit: '枚' }
+    ],
+    tags: ['鶏', '野菜多め']
+  },
+  {
+    id: 'm13', name: '麻婆豆腐', site: 'DELISH KITCHEN',
+    recipeUrl: 'https://delishkitchen.tv/recipes/194117017215698001',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '絹ごし豆腐', amount: 2,   unit: '丁' },
+      { name: '豚ひき肉',   amount: 200, unit: 'g'  },
+      { name: 'ネギ',       amount: 1,   unit: '本' }
+    ],
+    tags: ['豚', '豆腐', '子ども向け']
+  },
+  {
+    id: 'm14', name: 'たらの野菜あんかけ', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '主菜', protein: '魚',
+    ingredients: [
+      { name: 'たら',     amount: 4, unit: '切れ' },
+      { name: 'にんじん', amount: 1, unit: '本'   },
+      { name: '長ねぎ',   amount: 1, unit: '本'   }
+    ],
+    tags: ['魚', '野菜多め']
+  },
+  {
+    id: 'm15', name: '鶏手羽元のさっぱり煮', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '鶏',
+    ingredients: [
+      { name: '鶏手羽元', amount: 8, unit: '本' },
+      { name: '卵',       amount: 4, unit: '個' }
+    ],
+    tags: ['鶏', '卵', '子ども向け']
+  },
+  {
+    id: 'm16', name: '豚バラ白菜の重ね鍋', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚バラ薄切り肉', amount: 300, unit: 'g'       },
+      { name: '白菜',           amount: 1,   unit: '袋（カット）' }
+    ],
+    tags: ['豚', '野菜多め', '時短']
+  },
+  {
+    id: 'm17', name: '豆腐ハンバーグ', site: 'クックパッド',
+    recipeUrl: 'https://cookpad.com/jp/recipes/17715016',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '合いびき肉', amount: 300, unit: 'g'  },
+      { name: '絹ごし豆腐', amount: 1,   unit: '丁' },
+      { name: '玉ねぎ',     amount: 1,   unit: '個' },
+      { name: '卵',         amount: 1,   unit: '個' }
+    ],
+    tags: ['豚', '豆腐', '卵', '子ども向け']
+  },
+  {
+    id: 'm18', name: '八宝菜', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚こま切れ肉', amount: 100, unit: 'g'  },
+      { name: 'むきえび',     amount: 100, unit: 'g'  },
+      { name: '白菜',         amount: 1,   unit: '個（小）' },
+      { name: 'にんじん',     amount: 1,   unit: '本' },
+      { name: '玉ねぎ',       amount: 1,   unit: '個' }
+    ],
+    tags: ['豚', '野菜多め']
+  },
+  {
+    id: 'm19', name: '豚キムチ炒め', site: 'クックパッド',
+    recipeUrl: 'https://cookpad.com/jp/recipes/22639181',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚バラ薄切り肉', amount: 300, unit: 'g'  },
+      { name: '白菜キムチ',     amount: 1,   unit: '袋' },
+      { name: 'ニラ',           amount: 1,   unit: '束' }
+    ],
+    tags: ['豚', '野菜多め', '時短']
+  },
+  {
+    id: 'm20', name: '鶏のから揚げ', site: 'クックパッド',
+    recipeUrl: 'https://cookpad.com/jp/recipes/19108352',
+    type: '主菜', protein: '鶏', fried: true,
+    ingredients: [
+      { name: '鶏もも肉', amount: 2, unit: '枚' }
+    ],
+    tags: ['鶏', '子ども向け', '高たんぱく']
+  },
+  {
+    id: 'm21', name: 'かぼちゃのそぼろ煮', site: 'Nadia',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚ひき肉', amount: 200, unit: 'g'      },
+      { name: 'かぼちゃ', amount: 1,   unit: '個（小）' }
+    ],
+    tags: ['豚', '野菜多め', '子ども向け']
+  },
+  {
+    id: 'm22', name: '魚のトマトチーズホイル焼き', site: 'Nadia',
+    recipeUrl: '',
+    type: '主菜', protein: '魚',
+    ingredients: [
+      { name: '鮭',           amount: 4, unit: '切れ' },
+      { name: 'カットトマト缶', amount: 1, unit: '缶'  },
+      { name: 'ピザ用チーズ',  amount: 1, unit: '袋'  }
+    ],
+    tags: ['魚', '子ども向け', '野菜多め']
+  },
+  {
+    id: 'm23', name: '鶏肉のレモンクリーム煮', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '鶏',
+    ingredients: [
+      { name: '鶏もも肉',   amount: 2, unit: '枚' },
+      { name: '玉ねぎ',     amount: 1, unit: '個' },
+      { name: 'ブロッコリー', amount: 1, unit: '株' }
+    ],
+    tags: ['鶏', '野菜多め', '子ども向け']
+  },
+  {
+    id: 'm24', name: 'なす豚バラの甘辛炒め', site: 'Nadia',
+    recipeUrl: 'https://oceans-nadia.com/user/10816/recipe/396133',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚バラ薄切り肉', amount: 200, unit: 'g'  },
+      { name: 'なす',           amount: 3,   unit: '本' }
+    ],
+    tags: ['豚', '野菜多め', '時短']
+  },
+  {
+    id: 'm25', name: '厚揚げの甘辛煮', site: 'Nadia',
+    recipeUrl: '',
+    type: '主菜', protein: '豚',
+    ingredients: [
+      { name: '豚バラ薄切り肉', amount: 200, unit: 'g'      },
+      { name: '厚揚げ',         amount: 2,   unit: '枚'     },
+      { name: '大根',           amount: 1,   unit: '本（小）' }
+    ],
+    tags: ['豚', '豆腐', '野菜多め']
+  },
+
+  // ===================== 主菜（火曜日限定：カレー・ハヤシライス・シチュー系）=====================
+  // tuesdayOnly: true → 火曜日以外には絶対に出ない
+
+  {
+    id: 'm26', name: 'カレーライス', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '豚', tuesdayOnly: true,
+    ingredients: [
+      { name: '豚こま切れ肉', amount: 300, unit: 'g'  },
+      { name: 'じゃがいも',   amount: 3,   unit: '個' },
+      { name: 'にんじん',     amount: 1,   unit: '本' },
+      { name: '玉ねぎ',       amount: 2,   unit: '個' },
+      { name: 'カレールー',   amount: 1,   unit: '箱' }
+    ],
+    tags: ['豚', '子ども向け', '野菜多め']
+  },
+  {
+    id: 'm27', name: 'チキンカレー', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '主菜', protein: '鶏', tuesdayOnly: true,
+    ingredients: [
+      { name: '鶏もも肉',   amount: 2,   unit: '枚' },
+      { name: 'じゃがいも', amount: 3,   unit: '個' },
+      { name: 'にんじん',   amount: 1,   unit: '本' },
+      { name: '玉ねぎ',     amount: 2,   unit: '個' },
+      { name: 'カレールー', amount: 1,   unit: '箱' }
+    ],
+    tags: ['鶏', '子ども向け', '野菜多め']
+  },
+  {
+    id: 'm28', name: 'ハヤシライス', site: 'Nadia',
+    recipeUrl: '',
+    type: '主菜', protein: '牛', tuesdayOnly: true,
+    ingredients: [
+      { name: '牛こま切れ肉',   amount: 200, unit: 'g'  },
+      { name: '玉ねぎ',         amount: 2,   unit: '個' },
+      { name: 'マッシュルーム', amount: 1,   unit: '袋' },
+      { name: 'ハヤシルー',     amount: 1,   unit: '箱' }
+    ],
+    tags: ['牛', '子ども向け']
+  },
+  {
+    id: 'm29', name: 'クリームシチュー', site: 'クックパッド',
+    recipeUrl: '',
+    type: '主菜', protein: '鶏', tuesdayOnly: true,
+    ingredients: [
+      { name: '鶏もも肉',       amount: 2,   unit: '枚' },
+      { name: 'じゃがいも',     amount: 3,   unit: '個' },
+      { name: 'にんじん',       amount: 1,   unit: '本' },
+      { name: '玉ねぎ',         amount: 1,   unit: '個' },
+      { name: 'シチューのルー', amount: 1,   unit: '箱' }
+    ],
+    tags: ['鶏', '子ども向け', '野菜多め']
+  },
+  {
+    id: 'm30', name: 'ビーフシチュー', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '主菜', protein: '牛', tuesdayOnly: true,
+    ingredients: [
+      { name: '牛こま切れ肉',   amount: 300, unit: 'g'  },
+      { name: 'じゃがいも',     amount: 3,   unit: '個' },
+      { name: 'にんじん',       amount: 1,   unit: '本' },
+      { name: '玉ねぎ',         amount: 1,   unit: '個' },
+      { name: 'シチューのルー', amount: 1,   unit: '箱' }
+    ],
+    tags: ['牛', '子ども向け', '野菜多め']
+  },
+
+  // ===================== 副菜 20品 =====================
+
+  {
+    id: 's01', name: 'ほうれん草のお浸し', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'ほうれん草', amount: 2, unit: '袋' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's02', name: '切り干し大根の煮物', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '切り干し大根', amount: 50, unit: 'g'  },
+      { name: '油揚げ',       amount: 2,  unit: '枚' },
+      { name: 'にんじん',     amount: 1,  unit: '本' }
+    ],
+    tags: ['野菜多め']
+  },
+  {
+    id: 's03', name: 'ひじきの煮物', site: 'Nadia',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'ひじき（乾燥）', amount: 30, unit: 'g'  },
+      { name: '油揚げ',         amount: 2,  unit: '枚' },
+      { name: 'にんじん',       amount: 1,  unit: '本' }
+    ],
+    tags: ['野菜多め']
+  },
+  {
+    id: 's04', name: 'きんぴらごぼう', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'ごぼう',   amount: 1, unit: '本' },
+      { name: 'にんじん', amount: 1, unit: '本' }
+    ],
+    tags: ['野菜多め']
+  },
+  {
+    id: 's05', name: 'かぼちゃの煮物', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'かぼちゃ', amount: 1, unit: '個（小）' }
+    ],
+    tags: ['野菜多め', '子ども向け']
+  },
+  {
+    id: 's06', name: '小松菜の煮びたし', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '小松菜', amount: 1, unit: '袋' },
+      { name: '油揚げ', amount: 2, unit: '枚' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's07', name: '揚げだし豆腐', site: '楽天レシピ',
+    recipeUrl: 'https://recipe.rakuten.co.jp/recipe/1410015635/',
+    type: '副菜', protein: null, fried: true,
+    ingredients: [
+      { name: '木綿豆腐', amount: 1, unit: '丁' }
+    ],
+    tags: ['豆腐', '時短']
+  },
+  {
+    id: 's08', name: 'ブロッコリーのごまあえ', site: 'DELISH KITCHEN',
+    recipeUrl: 'https://delishkitchen.tv/recipes/155424081745805804',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'ブロッコリー', amount: 1, unit: '株' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's09', name: 'ポテトサラダ', site: 'クックパッド',
+    recipeUrl: 'https://cookpad.com/jp/recipes/18833006',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'じゃがいも', amount: 3, unit: '個' },
+      { name: 'にんじん',   amount: 1, unit: '本' },
+      { name: '玉ねぎ',     amount: 1, unit: '個' },
+      { name: 'きゅうり',   amount: 1, unit: '本' }
+    ],
+    tags: ['野菜多め', '子ども向け']
+  },
+  {
+    id: 's10', name: 'だし巻き卵', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '卵', amount: 4, unit: '個' }
+    ],
+    tags: ['卵', '時短', '子ども向け']
+  },
+  {
+    id: 's11', name: '里芋の煮物', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '里芋', amount: 500, unit: 'g' }
+    ],
+    tags: ['野菜多め']
+  },
+  {
+    id: 's12', name: 'なすとピーマンの味噌炒め', site: 'Nadia',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'なす',   amount: 3, unit: '本' },
+      { name: 'ピーマン', amount: 3, unit: '個' }
+    ],
+    tags: ['野菜多め']
+  },
+  {
+    id: 's13', name: 'もやしとニラのナムル', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'もやし', amount: 2, unit: '袋' },
+      { name: 'ニラ',   amount: 1, unit: '束' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's14', name: 'れんこんのきんぴら', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'れんこん', amount: 1, unit: '節' }
+    ],
+    tags: ['野菜多め']
+  },
+  {
+    id: 's15', name: 'アスパラのバターソテー', site: 'DELISH KITCHEN',
+    recipeUrl: 'https://delishkitchen.tv/recipes/350280685015008350',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'アスパラガス', amount: 1, unit: '束' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's16', name: 'ほうれん草のごまあえ', site: '楽天レシピ',
+    recipeUrl: 'https://recipe.rakuten.co.jp/recipe/1420024243/',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'ほうれん草', amount: 1, unit: '袋' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's17', name: 'キャベツとベーコンの炒め物', site: 'Nadia',
+    recipeUrl: 'https://oceans-nadia.com/user/743048/recipe/461951',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'キャベツ', amount: 1,   unit: '個（小）' },
+      { name: 'ベーコン', amount: 4,   unit: '枚'       }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+  {
+    id: 's18', name: '湯豆腐', site: '楽天レシピ',
+    recipeUrl: 'https://recipe.rakuten.co.jp/recipe/1710014628/',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '木綿豆腐', amount: 2, unit: '丁' },
+      { name: 'ネギ',     amount: 1, unit: '本' }
+    ],
+    tags: ['豆腐', '時短']
+  },
+  {
+    id: 's19', name: '新じゃがとベーコンの醤油炒め', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'じゃがいも', amount: 3, unit: '個' },
+      { name: 'ベーコン',   amount: 3, unit: '枚' }
+    ],
+    tags: ['野菜多め', '子ども向け', '時短']
+  },
+  {
+    id: 's20', name: '白菜のうま煮', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '白菜',   amount: 1, unit: '袋（カット）' },
+      { name: '油揚げ', amount: 2, unit: '枚'           }
+    ],
+    tags: ['野菜多め']
+  },
+
+  // ===================== 汁物 10品 =====================
+
+  {
+    id: 'sp01', name: '豆腐とわかめの味噌汁', site: 'クックパッド',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: '絹ごし豆腐', amount: 1,  unit: '丁' },
+      { name: '乾燥わかめ', amount: 10, unit: 'g'  }
+    ],
+    tags: ['豆腐', '汁物', '時短']
+  },
+  {
+    id: 'sp02', name: '豚汁', site: 'Nadia',
+    recipeUrl: 'https://oceans-nadia.com/user/236306/recipe/382378',
+    type: '汁物', protein: '豚',
+    ingredients: [
+      { name: '豚バラ薄切り肉', amount: 150, unit: 'g'      },
+      { name: 'じゃがいも',    amount: 2,   unit: '個'     },
+      { name: 'にんじん',      amount: 1,   unit: '本'     },
+      { name: '大根',          amount: 1,   unit: '本（小）' },
+      { name: 'こんにゃく',    amount: 1,   unit: '枚'     }
+    ],
+    tags: ['豚', '野菜多め', '汁物']
+  },
+  {
+    id: 'sp03', name: '豆腐と油揚げの味噌汁', site: '楽天レシピ',
+    recipeUrl: 'https://recipe.rakuten.co.jp/recipe/1890002563/',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: '木綿豆腐', amount: 1, unit: '丁' },
+      { name: '油揚げ',   amount: 1, unit: '枚' }
+    ],
+    tags: ['豆腐', '汁物', '時短']
+  },
+  {
+    id: 'sp04', name: 'なめこと豆腐の味噌汁', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'なめこ',     amount: 1, unit: '袋' },
+      { name: '絹ごし豆腐', amount: 1, unit: '丁' }
+    ],
+    tags: ['豆腐', '汁物', '時短']
+  },
+  {
+    id: 'sp05', name: 'かきたま汁', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: '卵',  amount: 2, unit: '個' },
+      { name: 'ネギ', amount: 1, unit: '本' }
+    ],
+    tags: ['卵', '汁物', '時短']
+  },
+  {
+    id: 'sp06', name: 'キャベツと卵のスープ', site: 'Nadia',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'キャベツ', amount: 1, unit: '個（小）' },
+      { name: '卵',       amount: 2, unit: '個'       }
+    ],
+    tags: ['卵', '野菜多め', '汁物', '時短']
+  },
+  {
+    id: 'sp07', name: '大根と油揚げの味噌汁', site: 'クックパッド',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: '大根',   amount: 1, unit: '本（小）' },
+      { name: '油揚げ', amount: 1, unit: '枚'       }
+    ],
+    tags: ['汁物', '時短']
+  },
+  {
+    id: 'sp08', name: 'ほうれん草と落とし卵のみそ汁', site: '楽天レシピ',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'ほうれん草', amount: 1, unit: '袋' },
+      { name: '卵',         amount: 2, unit: '個' }
+    ],
+    tags: ['卵', '野菜多め', '汁物', '時短']
+  },
+  {
+    id: 'sp09', name: '新たまねぎのみそ汁', site: 'クックパッド',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: '玉ねぎ',     amount: 1,  unit: '個' },
+      { name: '乾燥わかめ', amount: 5,  unit: 'g'  }
+    ],
+    tags: ['汁物', '時短']
+  },
+  {
+    id: 'sp10', name: '根深汁（ねぎと油揚げの味噌汁）', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'ネギ',   amount: 2, unit: '本' },
+      { name: '油揚げ', amount: 1, unit: '枚' }
+    ],
+    tags: ['汁物', '時短']
+  },
+
+  // ===================== 汁物（追加：洋・中）=====================
+
+  {
+    id: 'sp11', name: '中華風コーンスープ', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'クリームコーン缶', amount: 1, unit: '缶' },
+      { name: '卵',              amount: 1, unit: '個' }
+    ],
+    tags: ['卵', '汁物', '時短', '子ども向け']
+  },
+  {
+    id: 'sp12', name: 'ミネストローネ', site: 'クックパッド',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'カットトマト缶', amount: 1, unit: '缶'       },
+      { name: 'キャベツ',      amount: 1, unit: '個（小）' },
+      { name: 'ベーコン',      amount: 4, unit: '枚'       }
+    ],
+    tags: ['野菜多め', '汁物', '子ども向け']
+  },
+  {
+    id: 'sp13', name: '中華スープ（ねぎと卵）', site: 'Nadia',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: '卵',  amount: 2, unit: '個' },
+      { name: 'ネギ', amount: 1, unit: '本' }
+    ],
+    tags: ['卵', '汁物', '時短', '子ども向け']
+  },
+  {
+    id: 'sp14', name: 'コンソメスープ', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '汁物', protein: null,
+    ingredients: [
+      { name: 'にんじん', amount: 1, unit: '本'       },
+      { name: '玉ねぎ',  amount: 1, unit: '個'       },
+      { name: 'キャベツ', amount: 1, unit: '個（小）' }
+    ],
+    tags: ['野菜多め', '汁物', '時短', '子ども向け']
+  },
+
+  // ===================== 副菜（追加：洋・中）=====================
+
+  {
+    id: 's21', name: '春雨の中華サラダ', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '春雨（豆春雨）', amount: 50, unit: 'g'  },
+      { name: 'きゅうり',       amount: 1,  unit: '本' },
+      { name: 'にんじん',       amount: 1,  unit: '本' }
+    ],
+    tags: ['野菜多め', '時短', '子ども向け']
+  },
+  {
+    id: 's22', name: 'コールスロー', site: 'DELISH KITCHEN',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'キャベツ', amount: 1, unit: '個（小）' },
+      { name: 'にんじん', amount: 1, unit: '本'       }
+    ],
+    tags: ['野菜多め', '時短', '子ども向け']
+  },
+  {
+    id: 's23', name: 'ブロッコリーとベーコンのソテー', site: 'Nadia',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'ブロッコリー', amount: 1, unit: '株' },
+      { name: 'ベーコン',     amount: 3, unit: '枚' }
+    ],
+    tags: ['野菜多め', '時短', '子ども向け']
+  },
+  {
+    id: 's24', name: 'チンゲン菜の中華炒め', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: 'チンゲン菜', amount: 2, unit: '株' }
+    ],
+    tags: ['野菜多め', '時短']
+  },
+
+  // ===================== 副菜（固定副菜用）=====================
+  // ローストビーフ：シチュー系主菜の固定副菜として使用
+
+  {
+    id: 's25', name: 'ローストビーフ', site: 'クックパッド',
+    recipeUrl: '',
+    type: '副菜', protein: null,
+    ingredients: [
+      { name: '牛もも肉（ブロック）', amount: 400, unit: 'g'  },
+      { name: '玉ねぎ',              amount: 1,   unit: '個' }
+    ],
+    tags: ['子ども向け']
+  }
+
+]; // RECIPES 終端
+
+// ============================================================
+// 料理系統マップ・子ども向け判定
+// ============================================================
+
+/**
+ * レシピIDから料理系統（'和'/'洋'/'中'）を返すマップ
+ * カスタムレシピはこのマップに存在しないため recipe.cuisine を参照する
+ *
+ * 系統の考え方：
+ *   和 = 醤油・味噌・だし・みりんベースの日本料理
+ *   洋 = バター・クリーム・トマト・コンソメベースの西洋料理
+ *   中 = ごま油・オイスターソース・豆板醤ベースの中国料理
+ */
+const CUISINE_MAP = {
+  // --- 主菜 ---
+  'm01': '和', // 鶏もも肉の照り焼き
+  'm02': '和', // 豚の生姜焼き
+  'm03': '和', // 鮭の照り焼き
+  'm04': '和', // 肉じゃが
+  'm05': '洋', // サラダチキン
+  'm06': '和', // さばの味噌煮
+  'm07': '和', // ゴーヤチャンプルー（沖縄料理→和系）
+  'm08': '和', // ぶり大根
+  'm09': '和', // 鶏じゃが
+  'm10': '和', // 豚バラと大根の煮物
+  'm11': '洋', // 鮭のホイル焼き（バター）
+  'm12': '和', // 鶏肉と根菜の筑前煮
+  'm13': '中', // 麻婆豆腐
+  'm14': '和', // たらの野菜あんかけ
+  'm15': '和', // 鶏手羽元のさっぱり煮
+  'm16': '和', // 豚バラ白菜の重ね鍋
+  'm17': '洋', // 豆腐ハンバーグ
+  'm18': '中', // 八宝菜
+  'm19': '和', // 豚キムチ炒め
+  'm21': '和', // かぼちゃのそぼろ煮
+  'm22': '洋', // 魚のトマトチーズホイル焼き
+  'm23': '洋', // 鶏肉のレモンクリーム煮
+  'm24': '和', // なす豚バラの甘辛炒め
+  'm25': '和', // 厚揚げの甘辛煮
+  // --- 主菜（火曜日限定）---
+  'm26': '洋', // カレーライス
+  'm27': '洋', // チキンカレー
+  'm28': '洋', // ハヤシライス
+  'm29': '洋', // クリームシチュー
+  'm30': '洋', // ビーフシチュー
+  // --- 副菜 ---
+  's01': '和', // ほうれん草のお浸し
+  's02': '和', // 切り干し大根の煮物
+  's03': '和', // ひじきの煮物
+  's04': '和', // きんぴらごぼう
+  's05': '和', // かぼちゃの煮物
+  's06': '和', // 小松菜の煮びたし
+  's08': '和', // ブロッコリーのごまあえ
+  's09': '洋', // ポテトサラダ
+  's10': '和', // だし巻き卵
+  's11': '和', // 里芋の煮物
+  's12': '和', // なすとピーマンの味噌炒め
+  's13': '中', // もやしとニラのナムル（中華系）
+  's14': '和', // れんこんのきんぴら
+  's15': '洋', // アスパラのバターソテー
+  's16': '和', // ほうれん草のごまあえ
+  's17': '洋', // キャベツとベーコンの炒め物
+  's18': '和', // 湯豆腐
+  's19': '洋', // 新じゃがとベーコンの醤油炒め
+  's20': '和', // 白菜のうま煮
+  's21': '中', // 春雨の中華サラダ
+  's22': '洋', // コールスロー
+  's23': '洋', // ブロッコリーとベーコンのソテー
+  's24': '中', // チンゲン菜の中華炒め
+  's25': '洋', // ローストビーフ
+  // --- 汁物 ---
+  'sp01': '和', // 豆腐とわかめの味噌汁
+  'sp02': '和', // 豚汁
+  'sp03': '和', // 豆腐と油揚げの味噌汁
+  'sp04': '和', // なめこと豆腐の味噌汁
+  'sp05': '和', // かきたま汁
+  'sp06': '洋', // キャベツと卵のスープ
+  'sp07': '和', // 大根と油揚げの味噌汁
+  'sp08': '和', // ほうれん草と落とし卵のみそ汁
+  'sp09': '和', // 新たまねぎのみそ汁
+  'sp10': '和', // 根深汁
+  'sp11': '中', // 中華風コーンスープ
+  'sp12': '洋', // ミネストローネ
+  'sp13': '中', // 中華スープ（ねぎと卵）
+  'sp14': '洋', // コンソメスープ
+};
+
+/**
+ * 子どもが食べにくいメニューのIDセット
+ * m07: ゴーヤチャンプルー（苦み強い）
+ * m19: 豚キムチ炒め（辛み強い）
+ */
+const CHILD_UNFRIENDLY_IDS = new Set(['m07', 'm19']);
+
+/**
+ * レシピの料理系統を返す
+ * カスタムレシピの場合は recipe.cuisine を参照（未設定なら null）
+ * @param {object} recipe
+ * @returns {'和'|'洋'|'中'|null}
+ */
+function getRecipeCuisine(recipe) {
+  return CUISINE_MAP[recipe.id] ?? recipe.cuisine ?? null;
+}
+
+/**
+ * 子ども向けスコアを返す（低いほど子ども向け・選ばれやすい）
+ * @param {object} recipe
+ * @returns {number} 0=積極的子ども向け / 8=中立 / 22=子どもには不向き
+ */
+function getChildFriendlyScore(recipe) {
+  if (CHILD_UNFRIENDLY_IDS.has(recipe.id)) return 22;
+  if (recipe.tags && recipe.tags.includes('子ども向け')) return 0;
+  return 8;
+}
+
+// ============================================================
+// アプリ状態
+// ============================================================
+
+/** 現在表示中の献立オブジェクト */
+let currentMenu    = null;
+let extraItems     = []; // 追加で買うもの：[{ id, name, amount, unit, category }]
+let openFormCatKey = null; // 現在開いているインライン入力フォームのカテゴリキー
+
+/**
+ * 買い物リストの手動上書き情報
+ *   deleted   : 削除済みアイテムキーの配列
+ *   quantities: { [itemKey]: number } 数量上書きマップ
+ */
+let shoppingOverrides = { deleted: [], quantities: {} };
+
+/** 編集中のカスタムレシピID（編集中でなければ null） */
+let editingCustomId = null;
+
+// ============================================================
+// ユーティリティ関数
+// ============================================================
+
+/**
+ * 配列をランダムにシャッフル（Fisher-Yates）
+ * 元の配列を変更せず新しい配列を返す
+ */
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** ランダム整数を返す [min, max) */
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+/** XSS防止のための最小限HTMLエスケープ */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** カスタムレシピ用のユニークID生成 */
+function generateCustomId() {
+  return 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+/**
+ * 食材リストからたんぱく源を自動判定する
+ * 献立生成ロジック（水曜=魚、たんぱく偏り防止）に使用
+ * @param {Array} ingredients
+ * @returns {string|null} '魚'|'鶏'|'豚'|'牛'|null
+ */
+function autoDetectProtein(ingredients) {
+  const FISH_KW  = ['鮭','さば','サバ','ぶり','ブリ','たら','タラ','あさり','えび','エビ',
+                    'いか','イカ','タコ','カニ','ツナ','サーモン','魚'];
+  const CHICK_KW = ['鶏'];
+  const PORK_KW  = ['豚'];
+  const BEEF_KW  = ['牛','合いびき肉'];
+
+  for (const ing of (ingredients || [])) {
+    const n = ing.name || '';
+    if (FISH_KW.some(k  => n.includes(k))) return '魚';
+    if (CHICK_KW.some(k => n.includes(k))) return '鶏';
+    if (PORK_KW.some(k  => n.includes(k))) return '豚';
+    if (BEEF_KW.some(k  => n.includes(k))) return '牛';
+  }
+  return null;
+}
+
+// ============================================================
+// localStorage 操作
+// ============================================================
+
+/** 過去の献立履歴を取得（空なら空配列） */
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(KEY_HISTORY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 献立を過去履歴の先頭に追加し保存（直近10週まで）
+ */
+function pushHistory(menu) {
+  try {
+    const history = getHistory();
+    const entry = {
+      weekOf:    menu.weekOf,
+      savedAt:   new Date().toISOString(),
+      recipeIds: menu.days.flatMap(d => {
+        if (d && d.cleared) return [];
+        const ids = [
+          ...(d.mains || []).map(r => r.id),
+          ...(d.sides || []).map(r => r.id)
+        ];
+        if (d.soup) ids.push(d.soup.id);
+        return ids;
+      })
+    };
+    history.unshift(entry);
+    localStorage.setItem(KEY_HISTORY, JSON.stringify(history.slice(0, 10)));
+  } catch (e) {
+    console.warn('履歴保存エラー:', e);
+  }
+}
+
+/**
+ * 直近 weekCount 週に使われたレシピIDのSetを取得
+ */
+function getRecentIds(weekCount = 3) {
+  const ids = new Set();
+  getHistory().slice(0, weekCount).forEach(w => {
+    (w.recipeIds || []).forEach(id => ids.add(id));
+  });
+  return ids;
+}
+
+/** 現在の献立を localStorage に保存 */
+function saveCurrentMenu(menu) {
+  try {
+    localStorage.setItem(KEY_CURRENT, JSON.stringify(menu));
+  } catch (e) {
+    console.warn('現在の献立保存エラー:', e);
+  }
+}
+
+/**
+ * カスタムレシピ一覧を localStorage から取得
+ * @returns {Array}
+ */
+function getCustomRecipes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY_CUSTOM_RECIPES) || '[]');
+    if (!Array.isArray(saved)) return [];
+
+    // 旧バージョンで登録したレシピには isCustom などの項目がない場合がある。
+    // 管理一覧には表示できても候補一覧で「自作」と判定されないため、
+    // 読み込み時に現在の形式へ補正し、以後も使えるよう保存し直す。
+    let migrated = false;
+    const typeMap = {
+      main: '主菜', side: '副菜', soup: '汁物',
+      'メイン': '主菜', 'おかず': '副菜', 'スープ': '汁物'
+    };
+
+    const recipes = saved.map(raw => {
+      const recipe = (raw && typeof raw === 'object') ? raw : {};
+      const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+      const normalizedType = typeMap[recipe.type] || recipe.type || '主菜';
+      const normalized = {
+        fried: false,
+        tags: ['カスタム'],
+        protein: null,
+        ...recipe,
+        id: recipe.id || generateCustomId(),
+        type: normalizedType,
+        ingredients,
+        isCustom: true,
+        tags: Array.isArray(recipe.tags)
+          ? [...new Set([...recipe.tags, 'カスタム'])]
+          : ['カスタム']
+      };
+
+      // 古いデータでたんぱく源が未設定なら、登録食材から再判定する。
+      if (!normalized.protein && ingredients.length > 0) {
+        normalized.protein = autoDetectProtein(ingredients);
+      }
+
+      if (JSON.stringify(normalized) !== JSON.stringify(recipe)) migrated = true;
+      return normalized;
+    });
+
+    if (migrated) {
+      localStorage.setItem(KEY_CUSTOM_RECIPES, JSON.stringify(recipes));
+    }
+    return recipes;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * カスタムレシピ一覧を localStorage に保存
+ * @param {Array} recipes
+ */
+function saveCustomRecipes(recipes) {
+  try {
+    localStorage.setItem(KEY_CUSTOM_RECIPES, JSON.stringify(recipes));
+  } catch (e) {
+    console.warn('カスタムレシピ保存エラー:', e);
+  }
+}
+
+/**
+ * 組み込みRECIPESとカスタムレシピをマージして返す
+ * buildWeekMenu から呼び出す
+ * @returns {Array}
+ */
+function getAllRecipes() {
+  const customs = getCustomRecipes().map(r => ({
+    fried:   false,   // カスタムレシピはデフォルトで揚げ物なし
+    tags:    ['カスタム'],
+    protein: null,
+    ...r,             // 保存データで上書き（proteinはautoDetect済み）
+    isCustom: true    // 旧登録データも必ず自作レシピとして扱う
+  }));
+  return [...RECIPES, ...customs];
+}
+
+/**
+ * 保存済み献立を読み込む
+ * IDからレシピオブジェクトを再構築（カスタムレシピも含む）
+ */
+function loadSavedMenu() {
+  try {
+    const raw = localStorage.getItem(KEY_CURRENT);
+    if (!raw) return null;
+
+    const menu = JSON.parse(raw);
+    // カスタムレシピも含めた全レシピマップを構築
+    const allRecipes = getAllRecipes();
+    const recipeMap  = Object.fromEntries(allRecipes.map(r => [r.id, r]));
+
+    // 自作メニューを「正規化名+種別」でインデックス化
+    // 保存済み献立に同名の組み込みレシピがある場合に自作版へ置き換えるために使用
+    const customByNameType = {};
+    allRecipes.filter(r => r.isCustom).forEach(r => {
+      customByNameType[normalizeMenuName(r.name) + '___' + r.type] = r;
+    });
+
+    // 保存IDからレシピを解決し、同名の自作レシピがあれば自作版を優先して返す
+    function resolveRecipe(saved) {
+      if (!saved) return null;
+      const recipe = recipeMap[saved.id] || saved;
+      // 組み込みレシピ（isCustom なし）で、同名の自作レシピが存在する場合は自作版に差し替え
+      if (!recipe.isCustom) {
+        const key    = normalizeMenuName(recipe.name) + '___' + recipe.type;
+        const custom = customByNameType[key];
+        if (custom) return custom;
+      }
+      return recipe;
+    }
+
+    menu.days = menu.days.map(d => {
+      if (d && d.cleared) return { cleared: true };
+      // 旧形式（main/side）→新形式（mains/sides）へ移行
+      if (d.mains === undefined) {
+        return {
+          mains: d.main ? [resolveRecipe(d.main)].filter(Boolean) : [],
+          sides: d.side ? [resolveRecipe(d.side)].filter(Boolean) : [],
+          soup:  d.soup ? resolveRecipe(d.soup) : null
+        };
+      }
+      return {
+        mains: (d.mains || []).map(resolveRecipe).filter(Boolean),
+        sides: (d.sides || []).map(resolveRecipe).filter(Boolean),
+        soup:  d.soup ? resolveRecipe(d.soup) : null
+      };
+    });
+    return menu;
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================
+// 献立生成ロジック
+// ============================================================
+
+/**
+ * レシピに対してスコアを計算する
+ * スコアが低いほど「今週選ばれやすい」
+ */
+/**
+ * レシピに対してスコアを計算する
+ * スコアが低いほど「今週選ばれやすい」
+ *
+ * 優先順位：
+ *   第1優先：子どもが食べやすいこと（getChildFriendlyScore）
+ *   第2優先：同じ日の和洋中系統をそろえること（preferCuisine）
+ *   第3優先：既存の栄養バランス・重複回避ルール
+ *
+ * @param {object}      recipe
+ * @param {Set}         recentIds       直近3週に使ったレシピID
+ * @param {object}      proteinCounts   今週のたんぱく源使用回数
+ * @param {object}      siteCounts      今週のサイト使用回数
+ * @param {string|null} preferCuisine   優先する料理系統（'和'/'洋'/'中'/null）
+ */
+function scoreRecipe(recipe, recentIds, proteinCounts, siteCounts, preferCuisine) {
+  let score = Math.random() * 12; // 基本ランダム成分
+
+  // 直近3週に使ったレシピはスコアを上げる（選ばれにくく）
+  if (recentIds.has(recipe.id)) {
+    score += 40;
+  }
+
+  // 今週すでに多く使ったたんぱく源はスコアを上げる（偏り防止）
+  if (recipe.protein) {
+    const usageCount = proteinCounts[recipe.protein] || 0;
+    score += usageCount * 18;
+  }
+
+  // 今週すでに2回以上使ったサイトはスコアを上げる（サイト偏り防止）
+  if (recipe.site && siteCounts) {
+    const siteCount = siteCounts[recipe.site] || 0;
+    if (siteCount >= 2) score += siteCount * 8;
+  }
+
+  // ===== 第1優先：子どもが食べやすいメニューを優先 =====
+  // 「子ども向け」タグあり → ボーナス（スコア低下）
+  // 子どもが食べにくいメニュー → ペナルティ（スコア増加）
+  score += getChildFriendlyScore(recipe);
+
+  // ===== 第2優先：同じ日の和洋中系統をそろえる =====
+  // 主菜の系統と異なる場合はペナルティを加算
+  // 系統不明（null）の場合はペナルティなし
+  if (preferCuisine) {
+    const recipeCuisine = getRecipeCuisine(recipe);
+    if (recipeCuisine && recipeCuisine !== preferCuisine) {
+      score += 14;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * プールから最もスコアの低いレシピを返す
+ * @param {Array}       pool           優先プール（未使用レシピ）
+ * @param {Array}       fallbackPool   フォールバック（全レシピ）
+ * @param {Set}         recentIds
+ * @param {object}      proteinCounts
+ * @param {object}      siteCounts
+ * @param {string|null} preferCuisine  優先する料理系統
+ */
+function pickBest(pool, fallbackPool, recentIds, proteinCounts, siteCounts, preferCuisine) {
+  const candidates = pool.length > 0 ? pool : fallbackPool;
+  if (candidates.length === 0) return null;
+
+  return candidates
+    .map(r => ({ r, score: scoreRecipe(r, recentIds, proteinCounts, siteCounts, preferCuisine) }))
+    .sort((a, b) => a.score - b.score)[0].r;
+}
+
+/**
+ * 5日分の週間献立を組み立てる
+ *
+ * @param {number[]|null} replaceIndices
+ *   null → 全日新規生成
+ *   [0]  → 0日目（月曜）のみ差し替え
+ */
+function buildWeekMenu(replaceIndices) {
+  // カスタムレシピを含む全レシピを取得
+  const allRecipes = getAllRecipes();
+
+  // 自作メニュー名のセットを種別ごとに構築（同名の組み込みレシピを除外するために使用）
+  const customNameSets = {
+    '主菜': new Set(allRecipes.filter(r => r.isCustom && r.type === '主菜').map(r => normalizeMenuName(r.name))),
+    '副菜': new Set(allRecipes.filter(r => r.isCustom && r.type === '副菜').map(r => normalizeMenuName(r.name))),
+    '汁物': new Set(allRecipes.filter(r => r.isCustom && r.type === '汁物').map(r => normalizeMenuName(r.name))),
+  };
+  // 自作と同名の組み込みレシピを除外するフィルター（自作レシピ自身は除外しない）
+  function notOverriddenByCustom(r) {
+    if (r.isCustom) return true;
+    return !customNameSets[r.type]?.has(normalizeMenuName(r.name));
+  }
+
+  const mains        = allRecipes.filter(r => r.type === '主菜' && !r.fried && notOverriddenByCustom(r));
+  const sides        = allRecipes.filter(r => r.type === '副菜' && !r.fried && notOverriddenByCustom(r));
+  const soups        = allRecipes.filter(r => r.type === '汁物' && !r.fried && notOverriddenByCustom(r));
+  const fishMains    = mains.filter(r => r.protein === '魚');
+  // ── tuesdayOnly（カレー・ハヤシライス・シチュー系）を完全分離 ──
+  // nonFishMains にはtuesdayOnly系を一切含めない。火曜のみ tuesdayMains を追加する。
+  const tuesdayMains = mains.filter(r => r.protein !== '魚' &&  isTuesdayOnly(r));
+  const nonFishMains = mains.filter(r => r.protein !== '魚' && !isTuesdayOnly(r));
+
+  const recentIds    = getRecentIds(3);
+  const isFullRegen  = (replaceIndices === null);
+  const targetIndices = isFullRegen ? [0, 1, 2, 3, 4] : replaceIndices;
+
+  const days = isFullRegen
+    ? new Array(5).fill(null)
+    : (currentMenu ? [...currentMenu.days] : new Array(5).fill(null));
+
+  // 汁物を付ける日を決定（0〜3日、ランダム）
+  const soupCount  = randInt(0, 4);
+  const soupDaySet = new Set(shuffle([0, 1, 2, 3, 4]).slice(0, soupCount));
+
+  // 魚料理の日を決定（水曜固定 + 追加0〜1日）
+  const WED_INDEX  = 2;
+  const fishDaySet = new Set([WED_INDEX]);
+  const extraFish  = randInt(0, 2);
+  shuffle([0, 1, 3, 4]).slice(0, extraFish).forEach(d => fishDaySet.add(d));
+
+  const usedMainIds   = new Set();
+  const usedSideIds   = new Set();
+  const usedSoupIds   = new Set();
+  const proteinCounts = {};
+  const siteCounts    = {};
+
+  // 差し替えしない日の既存IDを先に記録（cleared日はスキップ）
+  if (!isFullRegen && currentMenu) {
+    currentMenu.days.forEach((d, i) => {
+      if (!targetIndices.includes(i) && d && !d.cleared) {
+        (d.mains || []).forEach(r => {
+          usedMainIds.add(r.id);
+          if (r.protein) proteinCounts[r.protein] = (proteinCounts[r.protein] || 0) + 1;
+          if (r.site)    siteCounts[r.site]        = (siteCounts[r.site]    || 0) + 1;
+        });
+        (d.sides || []).forEach(r => {
+          usedSideIds.add(r.id);
+          if (r.site) siteCounts[r.site] = (siteCounts[r.site] || 0) + 1;
+        });
+        if (d.soup) {
+          usedSoupIds.add(d.soup.id);
+          if (d.soup.site) siteCounts[d.soup.site] = (siteCounts[d.soup.site] || 0) + 1;
+        }
+      }
+    });
+  }
+
+  // 各ターゲット日の献立を決定
+  for (const i of targetIndices) {
+    // ── 主菜プール選択 ──
+    // 火曜 : 通常非魚主菜 + tuesdayOnly（カレー・シチュー系）
+    // 水曜他魚固定日 : 魚主菜のみ
+    // それ以外 : 通常非魚主菜のみ（tuesdayOnly は絶対に含まない）
+    const isTuesdayDay = (i === TUE_INDEX);
+    let mainBasePool, mainBaseFull;
+    if (fishDaySet.has(i)) {
+      mainBasePool = fishMains.filter(r => !usedMainIds.has(r.id));
+      mainBaseFull = fishMains;
+    } else if (isTuesdayDay) {
+      const allTueMains = [...nonFishMains, ...tuesdayMains];
+      mainBasePool = allTueMains.filter(r => !usedMainIds.has(r.id));
+      mainBaseFull = allTueMains;
+    } else {
+      // 火曜以外・非魚日：tuesdayOnly を完全排除
+      mainBasePool = nonFishMains.filter(r => !usedMainIds.has(r.id));
+      mainBaseFull = nonFishMains;
+    }
+    const mainPool = mainBasePool;
+    const mainFull = mainBaseFull;
+
+    // 主菜は系統指定なし（null）で選択。子ども向けスコアのみ反映
+    const main = pickBest(mainPool, mainFull, recentIds, proteinCounts, siteCounts, null);
+    if (!main) continue;
+
+    usedMainIds.add(main.id);
+    if (main.protein) {
+      proteinCounts[main.protein] = (proteinCounts[main.protein] || 0) + 1;
+    }
+    if (main.site) siteCounts[main.site] = (siteCounts[main.site] || 0) + 1;
+
+    // 主菜の料理系統を取得し、副菜・汁物の選択に活用
+    // 同じ日は和洋中系統をそろえる（第2優先）
+    const dayCuisine = getRecipeCuisine(main);
+
+    // 固定副菜ルール：カレー・ハヤシ系 → ポテトサラダ / シチュー系 → ローストビーフ
+    const fixedSide = getFixedSide(main, allRecipes);
+    let side;
+    if (fixedSide) {
+      side = fixedSide;
+    } else {
+      const sidePool = sides.filter(r => !usedSideIds.has(r.id));
+      side = pickBest(sidePool, sides, recentIds, {}, siteCounts, dayCuisine);
+    }
+    if (side) {
+      usedSideIds.add(side.id);
+      if (side.site) siteCounts[side.site] = (siteCounts[side.site] || 0) + 1;
+    }
+
+    let soup = null;
+    if (soupDaySet.has(i)) {
+      const soupPool = soups.filter(r => !usedSoupIds.has(r.id));
+      soup = pickBest(soupPool, soups, recentIds, {}, siteCounts, dayCuisine);
+      if (soup) {
+        usedSoupIds.add(soup.id);
+        if (soup.site) siteCounts[soup.site] = (siteCounts[soup.site] || 0) + 1;
+      }
+    }
+
+    days[i] = { mains: [main], sides: side ? [side] : [], soup };
+  }
+
+  // フォールバック：null が残っている日を埋める
+  for (let i = 0; i < 5; i++) {
+    if (!days[i]) {
+      // フォールバック時も tuesdayOnly を曜日で完全分離
+      const isTuesdayFb = (i === TUE_INDEX);
+      const mainsFb = isTuesdayFb
+        ? [...nonFishMains, ...tuesdayMains]
+        : nonFishMains; // 火曜以外はtuesdayOnlyを含まない
+      const fallbackMain = (i === WED_INDEX)
+        ? (fishMains[0] || nonFishMains[0])
+        : (mainsFb[i % mainsFb.length] || mainsFb[0]);
+      days[i] = {
+        mains: fallbackMain ? [fallbackMain] : [],
+        sides: sides.length ? [sides[i % sides.length] || sides[0]] : [],
+        soup: null
+      };
+    }
+  }
+
+  // 最終安全チェック：水曜の主菜が魚でなければ強制差し替え
+  const wedMain0 = days[WED_INDEX]?.mains?.[0];
+  if (wedMain0 && wedMain0.protein !== '魚') {
+    const wedFish = fishMains.find(r => r.id !== wedMain0.id) || fishMains[0];
+    if (wedFish) days[WED_INDEX] = { ...days[WED_INDEX], mains: [wedFish] };
+  }
+
+  return {
+    weekOf:      new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' }),
+    generatedAt: new Date().toISOString(),
+    days
+  };
+}
+
+// ============================================================
+// 買い物リスト生成
+// ============================================================
+
+/**
+ * 週間献立から食材を集計しカテゴリ別の買い物リストを生成
+ * - 同一食材（名前＋単位が同じ）は数量合算
+ * - SEASONINGS に含まれる調味料は除外
+ * - カスタムレシピの食材も合算対象
+ *
+ * @param {object} menu
+ * @returns {Map<string, Array>}
+ */
+/**
+ * 魚・肉類の中でのサブカテゴリ順を返す
+ * 0=魚系（えび・いか・たこ含む） 1=鶏肉系 2=牛肉系 3=豚肉系 4=ミンチ系 5=その他
+ * @param {string} name - 食材名（表示名）
+ * @returns {number}
+ */
+/**
+ * 魚・肉類サブカテゴリの表示順を返す
+ * 0: 魚介類  1: 鶏肉  2: 牛肉  3: 豚肉  4: ミンチ系  5: 加工肉（ベーコン等）
+ */
+function getMeatSubOrder(name) {
+  const n = normalizeIngredientName(name);
+  // ── ミンチ・ひき肉系（鶏/豚/牛より先にチェック） ──
+  // 注意：normalizeIngredientName はカタカナ→ひらがな変換のみで漢字はそのまま残る
+  // '合いびき肉' → n = '合いびき肉'  ← 漢字の「合」はひらがなに変わらない
+  //   → 'ひき肉' は含まない（びき肉であってひき肉ではない）
+  //   → 'あいびき' も含まない（合 が あ に変わらないため）
+  // 対策：'びき肉'（合いびき肉・合挽き肉）、'合いびき'、'合挽'、'みんち'（ミンチ正規化後）を追加
+  if (n.includes('ひき肉') || n.includes('びき肉') ||
+      n.includes('あいびき') || n.includes('合いびき') || n.includes('合挽') ||
+      n.includes('みんち')) return 4;
+  // ── 加工肉系（ベーコン・ウインナー・ソーセージ・ハム） ──
+  if (/べーこん|ういんなー|うぃんなー|そーせーじ|そーせじ|^はむ$|はむすらいす|はーふべーこん/.test(n)) return 5;
+  // ── 鶏肉系（手羽先・手羽元は「鶏」を含まないため明示的に判定） ──
+  if (n.includes('鶏') || n.includes('ちきん') || n.includes('手羽')) return 1;
+  // ── 牛肉系 ──
+  if (n.includes('牛') || n.includes('びーふ')) return 2;
+  // ── 豚肉系 ──
+  if (n.includes('豚') || n.includes('ぽーく')) return 3;
+  // ── 魚介類（えび・いか・たこ・貝類など）がデフォルト ──
+  return 0;
+}
+
+/**
+ * 野菜類サブカテゴリの表示順を返す
+ * normalizeIngredientName 適用後の文字列で部分一致チェック（カタカナゆれを吸収）
+ * 番号が小さいほど先に表示。リストにない野菜は 99（末尾）
+ *
+ *  1.白菜  2.キャベツ  3.ほうれん草  4.レタス  5.大根  6.にんにく  7.生姜
+ *  8.ネギ系  9.キノコ類  10.ニラ  11.なす  12.ピーマン/パプリカ
+ * 13.レンコン  14.長いも/山芋  15.かぼちゃ  16.もやし  17.カット野菜
+ * 18.タケノコ  19.人参  20.玉ねぎ  21.ジャガイモ  99.その他
+ */
+function getVeggieSubOrder(name) {
+  const n = normalizeIngredientName(name);
+  // 1. 白菜（キムチ等の複合語を除く）
+  if ((n.includes('白菜') || n.includes('はくさい')) && !n.includes('きむち')) return 1;
+  // 2. キャベツ
+  if (n.includes('きゃべつ')) return 2;
+  // 3. ほうれん草（ホウレン草・ホウレンソウ等の表記ゆれをひらがな正規化後に吸収）
+  if (n.includes('ほうれん草') || n.includes('ほうれんそう')) return 3;
+  // 4. レタス
+  if (n.includes('れたす')) return 4;
+  // 5. 大根（切り干し大根を含む）
+  if (n.includes('大根') || n.includes('だいこん')) return 5;
+  // 6. にんにく
+  if (n.includes('にんにく')) return 6;
+  // 7. 生姜・しょうが
+  if (n.includes('生姜') || n.includes('しょうが')) return 7;
+  // 8. ネギ系（長ねぎ・白ねぎ・青ねぎ・ねぎ全般）
+  // ※ 玉ねぎ(20) は 'ねぎ' を含むが別カテゴリ → 明示的に除外
+  if (n.includes('ねぎ') && !n.includes('玉ねぎ') && !n.includes('たまねぎ')) return 8;
+  // 9. キノコ類
+  if (n.includes('しめじ') || n.includes('えのき') ||
+      n.includes('まいたけ') || n.includes('舞茸') ||
+      n.includes('えりんぎ') || n.includes('なめこ') ||
+      n.includes('まっしゅるーむ') || n.includes('きのこ')) return 9;
+  // 10. ニラ
+  if (n.includes('にら')) return 10;
+  // 11. なす
+  if (n.includes('なす')) return 11;
+  // 12. ピーマン・パプリカ
+  if (n.includes('ぴーまん') || n.includes('ぱぷりか')) return 12;
+  // 13. レンコン・蓮根
+  if (n.includes('れんこん') || n.includes('蓮根')) return 13;
+  // 14. 長いも・山芋（じゃがいもの 'いも' に引っかからないよう明示的に列挙）
+  if (n.includes('ながいも') || n.includes('長いも') ||
+      n.includes('山芋') || n.includes('やまいも')) return 14;
+  // 15. かぼちゃ
+  if (n.includes('かぼちゃ')) return 15;
+  // 16. もやし
+  if (n.includes('もやし')) return 16;
+  // 17. カット野菜（カット→かっと + 野菜はkanji残存）
+  if (n.includes('かっと野菜') || n.includes('カット野菜') || n.includes('かっとやさい')) return 17;
+  // 18. タケノコ・筍
+  if (n.includes('たけのこ') || n.includes('筍')) return 18;
+  // 19. 人参・にんじん
+  if (n.includes('にんじん') || n.includes('人参')) return 19;
+  // 20. 玉ねぎ・たまねぎ
+  if (n.includes('玉ねぎ') || n.includes('たまねぎ')) return 20;
+  // 21. ジャガイモ・じゃがいも
+  if (n.includes('じゃがいも')) return 21;
+  // それ以外の野菜は末尾
+  return 99;
+}
+
+function buildShoppingList(menu) {
+  const flatMap = new Map();
+
+  menu.days.forEach((day, dayIndex) => {
+    // 献立を消した日は食材を集計しない
+    if (day && day.cleared) return;
+
+    const dishes = [...(day.mains || []), ...(day.sides || []), day.soup].filter(Boolean);
+
+    dishes.forEach(dish => {
+      if (!dish.ingredients) return;
+
+      dish.ingredients.forEach(ing => {
+        // 表示用：空白のみ正規化（カタカナ表記をそのまま保持）
+        const displayName = liteNormalize(ing.name);
+        // 合算・分類用：ひらがな統一＋同義語適用済みキー
+        const keyName  = getIngredientKey(ing.name);
+        const normUnit = (ing.unit || '').trim();
+
+        if (!keyName) return;
+        // 調味料除外（正規化後と元の名前の両方でチェック）
+        if (SEASONINGS.has(keyName) || SEASONINGS.has(ing.name)) return;
+
+        // 合算キー：正規化済み食材名＋単位
+        // → カタカナ/ひらがなゆれ・略称ゆれをまたいで自作献立と既存献立を合算
+        const key = `${keyName}___${normUnit}`;
+
+        const amount = typeof ing.amount === 'number' ? ing.amount
+                     : parseFloat(ing.amount) || 0;
+
+        if (flatMap.has(key)) {
+          const prev = flatMap.get(key);
+          if (typeof prev.amount === 'number') {
+            prev.amount += amount;
+          }
+          prev.days.add(dayIndex);
+        } else {
+          flatMap.set(key, {
+            key:      key,           // 上書き管理用キー
+            name:     displayName,   // 最初に現れた表記を表示名として使用
+            amount:   amount,
+            unit:     normUnit,
+            category: classifyIngredient(keyName),
+            days:     new Set([dayIndex])
+          });
+        }
+      });
+    });
+  });
+
+  // 昼用固定買い物を flatMap へ追加
+  // キーに '__lunch__' プレフィックスを付けることで夕食材料との合算を完全防止
+  LUNCH_FIXED_ITEMS.forEach(item => {
+    const key = `__lunch__${item.name}___${item.unit}`;
+    flatMap.set(key, {
+      key:      key,         // 上書き管理用キー
+      name:     item.name,
+      amount:   item.amount,
+      unit:     item.unit,
+      category: item.category,
+      days:     new Set(),
+      isLunch:  true
+    });
+  });
+
+  const result = new Map([
+    ['veggie', []],
+    ['meat',   []],
+    ['other',  []]
+  ]);
+
+  const sorted = [...flatMap.values()].sort((a, b) => {
+    if (a.category === 'meat' && b.category === 'meat') {
+      const oa = getMeatSubOrder(a.name), ob = getMeatSubOrder(b.name);
+      if (oa !== ob) return oa - ob;
+    }
+    if (a.category === 'veggie' && b.category === 'veggie') {
+      const oa = getVeggieSubOrder(a.name), ob = getVeggieSubOrder(b.name);
+      if (oa !== ob) return oa - ob;
+    }
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
+  sorted.forEach(item => {
+    result.get(item.category).push(item);
+  });
+
+  return result;
+}
+
+/**
+ * 数値を買い物しやすい表記にフォーマット
+ */
+function fmtAmount(amount) {
+  if (typeof amount !== 'number') return String(amount);
+  const fractions = { 0.25: '1/4', 0.5: '1/2', 0.75: '3/4', 0.333: '1/3' };
+  if (fractions[amount]) return fractions[amount];
+  if (Number.isInteger(amount)) return String(amount);
+  return String(Math.ceil(amount));
+}
+
+// ============================================================
+// UI描画
+// ============================================================
+
+/**
+ * 週間献立カード一覧を描画する
+ */
+function renderMenu(menu) {
+  const grid      = document.getElementById('daysGrid');
+  const weekLabel = document.getElementById('weekLabel');
+
+  if (!menu || !menu.days || menu.days.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🍳</div>
+        <p>「献立を作成」ボタンを押して<br>今週の夕食献立を作りましょう</p>
+      </div>`;
+    weekLabel.textContent = '';
+    renderShoppingList(null);
+    return;
+  }
+
+  weekLabel.textContent = `作成日: ${menu.weekOf}`;
+
+  let html = '';
+  menu.days.forEach((day, i) => {
+    // ── 献立なし（消去済み）の日 ──
+    if (day && day.cleared) {
+      html += `
+        <div class="day-card is-cleared">
+          <div class="day-header">
+            <span class="day-label">${escHtml(DAYS[i])}</span>
+            <div class="day-header-actions">
+              <button class="btn-replace" onclick="onClickReplaceDay(${i})">この日を差し替え</button>
+            </div>
+          </div>
+          <div class="cleared-notice">献立なし</div>
+        </div>`;
+      return;
+    }
+
+    // ── 通常の献立カード ──
+    // 料理系統バッジ（最初の主菜の系統を使用）
+    const cuisine = getRecipeCuisine((day.mains || [])[0] || null);
+    let cuisineBadge = '';
+    if (cuisine === '和') {
+      cuisineBadge = `<span class="day-cuisine-badge cuisine-wa">和食</span>`;
+    } else if (cuisine === '洋') {
+      cuisineBadge = `<span class="day-cuisine-badge cuisine-yo">洋食</span>`;
+    } else if (cuisine === '中') {
+      cuisineBadge = `<span class="day-cuisine-badge cuisine-chu">中華</span>`;
+    }
+
+    const mainsHtml = (day.mains || []).map((dish, j) =>
+      renderDishRow(dish, '主菜', 'badge-main', i, 'main', j)
+    ).join('');
+    const sidesHtml = (day.sides || []).map((dish, j) =>
+      renderDishRow(dish, '副菜', 'badge-side', i, 'side', j)
+    ).join('');
+    const addSoupRow = !day.soup
+      ? `<div class="add-dish-row"><button class="btn-add-dish" onclick="onClickReplaceDay(${i},'soup')">＋ 汁物を追加</button></div>`
+      : '';
+
+    html += `
+      <div class="day-card">
+        <div class="day-header">
+          <span class="day-label">${escHtml(DAYS[i])}${cuisineBadge}</span>
+          <div class="day-header-actions">
+            <button class="btn-random-day" onclick="onClickRandomDay(${i})">🎲 ランダム変更</button>
+            <button class="btn-replace" onclick="onClickReplaceDay(${i},'all')">全部差し替え</button>
+            <button class="btn-add-course" onclick="onClickAddDish(${i},'main')">＋ 主菜を追加</button>
+            <button class="btn-add-course" onclick="onClickAddDish(${i},'side')">＋ 副菜を追加</button>
+            <button class="btn-clear-day" onclick="onClearDay(${i})">この日の献立を消す</button>
+          </div>
+        </div>
+        <div class="dish-list">
+          <div class="rice-row">🍚 白ご飯</div>
+          ${mainsHtml}
+          ${sidesHtml}
+          ${day.soup ? renderDishRow(day.soup, '汁物', 'badge-soup', i, 'soup', 0) : addSoupRow}
+        </div>
+      </div>`;
+  });
+
+  grid.innerHTML = html;
+  renderShoppingList(menu);
+  updateHistoryInfo();
+}
+
+/**
+ * 1品分の表示行HTMLを生成
+ * カスタムレシピ（sourceType フィールドあり）と既存レシピを両対応
+ *
+ * @param {object} dish       - レシピオブジェクト
+ * @param {string} label      - 表示ラベル
+ * @param {string} badgeClass - バッジCSSクラス
+ * @param {number|null} dayIndex  - 差し替えボタン用の曜日インデックス（null=非表示）
+ * @param {string|null} courseKey - 'main' | 'side' | 'soup'（null=非表示）
+ */
+function renderDishRow(dish, label, badgeClass, dayIndex = null, courseKey = null, dishIndex = 0) {
+  if (!dish) return '';
+
+  let siteLabel = '';
+  let urlHtml   = '';
+
+  if (dish.isCustom) {
+    if (dish.sourceType === 'オリジナル') {
+      siteLabel = 'オリジナル';
+    } else if (dish.sourceType === '本') {
+      const pg = dish.urlOrPage ? ` / p.${dish.urlOrPage}` : '';
+      siteLabel = (dish.sourceName || '') + pg;
+    } else {
+      // サイト
+      siteLabel = dish.sourceName || dish.site || '';
+      const siteUrl = dish.recipeUrl || (dish.sourceType === 'サイト' ? dish.urlOrPage : '');
+      if (siteUrl) {
+        let displayText;
+        try { displayText = new URL(siteUrl).hostname.replace(/^www\./, ''); }
+        catch (_) { displayText = siteUrl; }
+        urlHtml = `<span class="dish-sep">/</span>`
+                + `<a class="dish-url" href="${escHtml(siteUrl)}" target="_blank" rel="noopener noreferrer">`
+                + `${escHtml(displayText)}</a>`;
+      }
+    }
+  } else {
+    // 組み込みレシピ（従来の動作）
+    siteLabel = dish.site || '';
+    const siteUrl = getRecipeUrl(dish);
+    if (siteUrl) {
+      let displayText;
+      try {
+        displayText = new URL(siteUrl).hostname.replace(/^www\./, '');
+      } catch (_) {
+        displayText = siteUrl;
+      }
+      urlHtml = `<span class="dish-sep">/</span>`
+              + `<a class="dish-url" href="${escHtml(siteUrl)}" target="_blank" rel="noopener noreferrer">`
+              + `${escHtml(displayText)}</a>`;
+    }
+  }
+
+  // カスタムレシピにはバッジを付ける
+  const customBadge = dish.isCustom
+    ? `<span class="badge-custom">自作</span>`
+    : '';
+
+  const actionBtnsHtml = (dayIndex !== null && courseKey !== null)
+    ? `<button class="btn-replace-dish" onclick="onClickReplaceDay(${dayIndex},'${courseKey}',${dishIndex})" title="${escHtml(label)}だけ差し替え">↺</button>`
+    + `<button class="btn-delete-dish" onclick="onDeleteDish(${dayIndex},'${courseKey}',${dishIndex})" title="${escHtml(label)}を消す">×</button>`
+    : '';
+
+  return `
+    <div class="dish-row">
+      <div class="dish-left">
+        <span class="dish-type-badge ${escHtml(badgeClass)}">${escHtml(label)}</span>
+        ${customBadge}
+        <span class="dish-name">${escHtml(dish.name)}</span>
+      </div>
+      <div class="dish-info">
+        ${siteLabel ? `<span class="dish-site">${escHtml(siteLabel)}</span>` : ''}
+        ${urlHtml}
+        ${actionBtnsHtml}
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// 追加で買うもの（分類ごとに手動登録）
+// ============================================================
+
+/** localStorage から追加アイテムを読み込む */
+function loadExtraItems() {
+  try {
+    const data = JSON.parse(localStorage.getItem(KEY_EXTRA_ITEMS) || '[]');
+    // 旧データ互換：category フィールドがなければ 'other' に移行
+    return data.map(item => ({ category: 'other', ...item }));
+  } catch (_) {
+    return [];
+  }
+}
+
+/** 追加アイテムを localStorage に保存する */
+function saveExtraItems() {
+  localStorage.setItem(KEY_EXTRA_ITEMS, JSON.stringify(extraItems));
+}
+
+/**
+ * 分類の追加フォームの開閉を切り替える
+ * 同じカテゴリを再クリックすると閉じる
+ * @param {string} catKey - 'veggie' | 'meat' | 'other'
+ */
+function toggleExtraForm(catKey) {
+  openFormCatKey = (openFormCatKey === catKey) ? null : catKey;
+  renderShoppingList(currentMenu);
+  if (openFormCatKey) {
+    // フォームが開いたら品名欄にフォーカス
+    setTimeout(() => {
+      const el = document.getElementById(`ei-${openFormCatKey}-name`);
+      if (el) el.focus();
+    }, 0);
+  }
+}
+
+/**
+ * 分類インライン入力フォームの「追加」を確定する
+ * @param {string} catKey
+ */
+function confirmExtraItem(catKey) {
+  const nameEl   = document.getElementById(`ei-${catKey}-name`);
+  const amountEl = document.getElementById(`ei-${catKey}-amount`);
+  const unitEl   = document.getElementById(`ei-${catKey}-unit`);
+  if (!nameEl) return;
+
+  const name   = (nameEl.value || '').trim();
+  const amount = parseInt(amountEl.value, 10);
+  const unit   = (unitEl.value || '').trim();
+
+  if (!name)             { nameEl.focus();   return; }
+  if (!amount || amount < 1) { amountEl.focus(); return; }
+
+  extraItems.push({
+    id:       `ei_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    name,
+    amount,
+    unit,
+    category: catKey
+  });
+  saveExtraItems();
+
+  // フォームは閉じずに品名だけリセット（続けて登録しやすいように）
+  nameEl.value = '';
+  renderShoppingList(currentMenu);
+  setTimeout(() => {
+    const el = document.getElementById(`ei-${catKey}-name`);
+    if (el) el.focus();
+  }, 0);
+}
+
+/**
+ * 指定IDの手動追加アイテムを削除する（旧関数・deleteShoppingItem から呼ばれる）
+ * @param {string} id
+ */
+function deleteExtraItem(id) {
+  extraItems = extraItems.filter(item => item.id !== id);
+  saveExtraItems();
+  renderShoppingList(currentMenu);
+}
+
+// ============================================================
+// 買い物リスト上書き管理
+// ============================================================
+
+/** localStorage から上書き情報を読み込む */
+function loadShoppingOverrides() {
+  try {
+    const data = JSON.parse(localStorage.getItem(KEY_SHOP_OVERRIDES) || 'null');
+    if (!data) return { deleted: [], quantities: {} };
+    return {
+      deleted:    Array.isArray(data.deleted)    ? data.deleted    : [],
+      quantities: data.quantities && typeof data.quantities === 'object'
+                    ? data.quantities : {}
+    };
+  } catch (_) {
+    return { deleted: [], quantities: {} };
+  }
+}
+
+/** 上書き情報を localStorage に保存する */
+function saveShoppingOverrides() {
+  localStorage.setItem(KEY_SHOP_OVERRIDES, JSON.stringify(shoppingOverrides));
+}
+
+/**
+ * 買い物リストの項目を削除する
+ * - 手動追加アイテムは extraItems から永続削除
+ * - 献立由来・昼用アイテムは shoppingOverrides.deleted に追加（ソフト削除）
+ * @param {string} encodedKey - encodeURIComponent 済みキー
+ * @param {string} itemName   - 確認ダイアログ表示用の品名
+ */
+function deleteShoppingItem(encodedKey, itemName) {
+  const itemKey = decodeURIComponent(encodedKey);
+  if (!confirm(`「${itemName}」を買い物リストから削除しますか？`)) return;
+
+  const isExtra = extraItems.some(it => it.id === itemKey);
+  if (isExtra) {
+    extraItems = extraItems.filter(it => it.id !== itemKey);
+    // 上書き情報からも除去
+    delete shoppingOverrides.quantities[itemKey];
+    shoppingOverrides.deleted = shoppingOverrides.deleted.filter(k => k !== itemKey);
+    saveExtraItems();
+    saveShoppingOverrides();
+  } else {
+    if (!shoppingOverrides.deleted.includes(itemKey)) {
+      shoppingOverrides.deleted.push(itemKey);
+    }
+    saveShoppingOverrides();
+  }
+  renderShoppingList(currentMenu);
+}
+
+/**
+ * 買い物リストの項目の数量を変更する
+ * - 手動追加アイテムは extraItems を直接更新
+ * - 献立由来・昼用アイテムは shoppingOverrides.quantities に保存
+ * @param {string} encodedKey - encodeURIComponent 済みキー
+ * @param {string} itemName   - ダイアログ表示用の品名
+ * @param {number} currentAmt - 現在の数量
+ * @param {string} unit       - 単位
+ */
+function editShoppingQty(encodedKey, itemName, currentAmt, unit) {
+  const itemKey = decodeURIComponent(encodedKey);
+  const newAmtStr = prompt(
+    `「${itemName}」の数量を変更してください（単位: ${unit}）`,
+    String(currentAmt)
+  );
+  if (newAmtStr === null) return;
+  const newAmt = parseInt(newAmtStr, 10);
+  if (!newAmt || newAmt < 1) {
+    alert('1以上の整数を入力してください');
+    return;
+  }
+
+  const extraIdx = extraItems.findIndex(it => it.id === itemKey);
+  if (extraIdx !== -1) {
+    extraItems[extraIdx] = { ...extraItems[extraIdx], amount: newAmt };
+    // extraItems の上書き記録を削除（直接更新したため不要）
+    delete shoppingOverrides.quantities[itemKey];
+    saveExtraItems();
+    saveShoppingOverrides();
+  } else {
+    shoppingOverrides.quantities[itemKey] = newAmt;
+    saveShoppingOverrides();
+  }
+  renderShoppingList(currentMenu);
+}
+
+/**
+ * 買い物リストをカテゴリ別に描画する（手動追加を各分類に混在表示）
+ * 表示順: 野菜類 → 魚・肉類 → その他
+ */
+function renderShoppingList(menu) {
+  const container = document.getElementById('shoppingList');
+
+  // 献立由来アイテムを取得（menu がなければ空マップ）
+  const categoryMap = menu ? buildShoppingList(menu) : new Map([
+    ['veggie', []], ['meat', []], ['other', []]
+  ]);
+
+  // 各カテゴリで献立由来 + 手動追加を統合してブロックを生成
+  const blocks = SHOP_CATEGORIES.map(cat => {
+    const autoItems  = categoryMap.get(cat.key) || [];
+    const manualItems = extraItems.filter(it => (it.category || 'other') === cat.key);
+    const isOpen     = openFormCatKey === cat.key;
+    // 削除済みを除いた実表示件数でhasItemsを判定
+    const visibleAutoCount   = autoItems.filter(i => !shoppingOverrides.deleted.includes(i.key)).length;
+    const visibleManualCount = manualItems.filter(i => !shoppingOverrides.deleted.includes(i.id)).length;
+    const hasItems = visibleAutoCount > 0 || visibleManualCount > 0;
+
+    // 献立由来アイテムを統一形式に変換（数量上書きを適用）
+    const autoNorm = autoItems.map(item => {
+      const oAmt = shoppingOverrides.quantities[item.key];
+      const displayAmt = oAmt !== undefined ? oAmt : item.amount;
+      return {
+        key:      item.key,
+        name:     item.name,
+        rawAmt:   displayAmt,
+        unit:     item.unit,
+        qtyHtml:  `${escHtml(fmtAmount(displayAmt))} ${escHtml(item.unit)}`,
+        dayLabel: item.isLunch ? '（昼）' : formatDayLabels(item.days),
+        isManual: false,
+        isLunch:  item.isLunch || false,
+      };
+    });
+
+    // 手動追加アイテムを統一形式に変換（数量上書きを適用）
+    const manualNorm = manualItems.map(item => {
+      const oAmt = shoppingOverrides.quantities[item.id];
+      const displayAmt = oAmt !== undefined ? oAmt : item.amount;
+      return {
+        key:     item.id,
+        name:    item.name,
+        rawAmt:  displayAmt,
+        unit:    item.unit,
+        qtyHtml: `${escHtml(String(displayAmt))} ${escHtml(item.unit)}`,
+        dayLabel: '',
+        isManual: true,
+      };
+    });
+
+    // 魚・肉類と野菜類は献立由来と手動追加を合流させてサブカテゴリ順にソート
+    let allItems;
+    if (cat.key === 'meat') {
+      allItems = [...autoNorm, ...manualNorm].sort((a, b) => {
+        const oa = getMeatSubOrder(a.name), ob = getMeatSubOrder(b.name);
+        if (oa !== ob) return oa - ob;
+        return a.name.localeCompare(b.name, 'ja');
+      });
+    } else if (cat.key === 'veggie') {
+      allItems = [...autoNorm, ...manualNorm].sort((a, b) => {
+        const oa = getVeggieSubOrder(a.name), ob = getVeggieSubOrder(b.name);
+        if (oa !== ob) return oa - ob;
+        return a.name.localeCompare(b.name, 'ja');
+      });
+    } else {
+      allItems = [...autoNorm, ...manualNorm];
+    }
+
+    // 行 HTML を生成（削除済みはスキップ、数量上書き・編集削除ボタン付き）
+    const allRows = allItems
+      .filter(item => !shoppingOverrides.deleted.includes(item.key))
+      .map(item => {
+        const encKey  = encodeURIComponent(item.key);
+        const escName = escHtml(item.name);
+        const escUnit = escHtml(item.unit);
+        const editBtn = `<button class="btn-shop-qty-edit" onclick="editShoppingQty('${encKey}','${escName}',${item.rawAmt},'${escUnit}')" title="数量を変更">✏</button>`;
+        const delBtn  = `<button class="btn-shop-item-del" onclick="deleteShoppingItem('${encKey}','${escName}')" title="削除">×</button>`;
+
+        if (item.isManual) {
+          return `
+            <li>
+              <span class="shopping-name">${escName}<span class="badge-manual">追加</span></span>
+              <span class="shopping-qty shop-item-actions">
+                <span>${item.qtyHtml}</span>
+                ${editBtn}${delBtn}
+              </span>
+            </li>`;
+        } else {
+          const dayTagClass = item.isLunch
+            ? 'shopping-days shopping-lunch-tag'
+            : 'shopping-days';
+          return `
+            <li>
+              <span class="shopping-name">${escName}</span>
+              <span class="shopping-qty shop-item-actions">
+                <span>${item.qtyHtml}<span class="${dayTagClass}">${escHtml(item.dayLabel)}</span></span>
+                ${editBtn}${delBtn}
+              </span>
+            </li>`;
+        }
+      }).join('');
+
+    // インライン入力フォーム
+    const formHtml = isOpen ? `
+      <div class="shop-add-form" id="shop-form-${escHtml(cat.key)}">
+        <div class="shop-add-form-row">
+          <input id="ei-${escHtml(cat.key)}-name" type="text" class="ei-input ei-name"
+                 placeholder="品名" maxlength="40"
+                 onkeydown="if(event.key==='Enter')confirmExtraItem('${escHtml(cat.key)}')">
+        </div>
+        <div class="shop-add-form-row">
+          <input id="ei-${escHtml(cat.key)}-amount" type="number" class="ei-input ei-amount"
+                 min="1" value="1"
+                 onkeydown="if(event.key==='Enter')confirmExtraItem('${escHtml(cat.key)}')">
+          <input id="ei-${escHtml(cat.key)}-unit" type="text" class="ei-input ei-unit"
+                 placeholder="単位" maxlength="10"
+                 onkeydown="if(event.key==='Enter')confirmExtraItem('${escHtml(cat.key)}')">
+          <button class="btn-extra-confirm" onclick="confirmExtraItem('${escHtml(cat.key)}')">追加</button>
+          <button class="btn-extra-cancel"  onclick="toggleExtraForm('${escHtml(cat.key)}')">閉じる</button>
+        </div>
+      </div>` : '';
+
+    // ヘッダー行（追加ボタン付き）
+    const headerHtml = `
+      <div class="shop-cat-header">
+        <span>${escHtml(cat.label)}</span>
+        <button class="btn-shop-add${isOpen ? ' is-open' : ''}"
+                onclick="toggleExtraForm('${escHtml(cat.key)}')"
+                title="${escHtml(cat.label)}に追加">＋ 追加</button>
+      </div>`;
+
+    // アイテムがなくフォームも閉じているカテゴリはヘッダーだけ
+    if (!hasItems && !isOpen) {
+      return `<div class="shop-cat-block">${headerHtml}${formHtml}</div>`;
+    }
+
+    return `
+      <div class="shop-cat-block">
+        ${headerHtml}
+        ${formHtml}
+        <ul class="shopping-ul">${allRows}</ul>
+      </div>`;
+  }).join('');
+
+  // 献立もなく手動追加もゼロのときの空ステート（ただし3カテゴリブロックは残す）
+  const totalAuto = [...categoryMap.values()].reduce((s, arr) => s + arr.length, 0);
+  if (!menu && totalAuto === 0 && extraItems.length === 0) {
+    container.innerHTML = `<p class="shop-empty">献立を作成すると<br>自動で表示されます</p>${blocks}`;
+    return;
+  }
+
+  container.innerHTML = blocks;
+}
+
+/** ページ上部の履歴件数表示を更新 */
+function updateHistoryInfo() {
+  const cnt  = getHistory().length;
+  const span = document.getElementById('historyInfo');
+  span.textContent = cnt > 0 ? `（過去 ${cnt} 週分の履歴あり）` : '';
+}
+
+// ============================================================
+// ボタンイベントハンドラ（既存機能）
+// ============================================================
+
+/** 「献立を作成」ボタンが押されたとき */
+function onClickGenerate() {
+  // 新しい週の献立なので買い物リスト上書き情報をリセット
+  shoppingOverrides = { deleted: [], quantities: {} };
+  saveShoppingOverrides();
+  // 手動追加した買い物項目を全削除（献立全体を作り直すタイミングのみ）
+  extraItems = [];
+  saveExtraItems();
+  currentMenu = buildWeekMenu(null);
+  pushHistory(currentMenu);
+  saveCurrentMenu(currentMenu);
+  renderMenu(currentMenu);
+}
+
+/**
+ * 差し替えボタンが押されたとき（全部 or 1コースのみ）
+ * @param {number} dayIndex  - 0=月, ..., 4=金
+ * @param {string} courseKey - 'all' | 'main' | 'side' | 'soup'
+ */
+function onClickReplaceDay(dayIndex, courseKey = 'all', dishIndex = 0) {
+  if (!currentMenu) {
+    onClickGenerate();
+    return;
+  }
+  openReplaceModal(dayIndex, courseKey, dishIndex);
+}
+
+/**
+ * 「＋ 主菜を追加」「＋ 副菜を追加」ボタンが押されたとき
+ * @param {number} dayIndex
+ * @param {string} courseKey - 'main' | 'side'
+ */
+function onClickAddDish(dayIndex, courseKey) {
+  if (!currentMenu) {
+    onClickGenerate();
+    return;
+  }
+  openReplaceModal(dayIndex, courseKey, -1); // -1 = add mode
+}
+
+/**
+ * 「ランダム変更」ボタンが押されたとき
+ * 指定曜日だけ献立ルールを守りつつランダムに再抽選する
+ * @param {number} dayIndex - 0=月, ..., 4=金
+ */
+function onClickRandomDay(dayIndex) {
+  if (!currentMenu) {
+    onClickGenerate();
+    return;
+  }
+  currentMenu = buildWeekMenu([dayIndex]);
+  saveCurrentMenu(currentMenu);
+  renderMenu(currentMenu);
+}
+
+/**
+ * 「この日の献立を消す」ボタンが押されたとき
+ * その日をcleared状態にして買い物リストからも除外する
+ * @param {number} dayIndex - 0=月, ..., 4=金
+ */
+function onClearDay(dayIndex) {
+  if (!currentMenu) return;
+  if (!confirm(`${DAYS[dayIndex]}の献立を消しますか？\n（「この日を差し替え」で後から再設定できます）`)) return;
+
+  currentMenu.days[dayIndex] = { cleared: true };
+  saveCurrentMenu(currentMenu);
+  renderMenu(currentMenu);
+}
+
+/**
+ * 料理行の「×」ボタンが押されたとき
+ * その日の指定コース（主菜・副菜・汁物）だけを消す
+ * @param {number} dayIndex  - 0=月, ..., 4=金
+ * @param {string} courseKey - 'main' | 'side' | 'soup'
+ */
+function onDeleteDish(dayIndex, courseKey, dishIndex = 0) {
+  if (!currentMenu) return;
+  const day = currentMenu.days[dayIndex];
+  if (!day || day.cleared) return;
+
+  if (courseKey === 'main') {
+    const name = (day.mains || [])[dishIndex]?.name || '主菜';
+    if (!confirm(`${DAYS[dayIndex]}の「${name}」を消しますか？`)) return;
+    day.mains.splice(dishIndex, 1);
+  } else if (courseKey === 'side') {
+    const name = (day.sides || [])[dishIndex]?.name || '副菜';
+    if (!confirm(`${DAYS[dayIndex]}の「${name}」を消しますか？`)) return;
+    day.sides.splice(dishIndex, 1);
+  } else if (courseKey === 'soup') {
+    if (!confirm(`${DAYS[dayIndex]}の汁物を消しますか？`)) return;
+    day.soup = null;
+  }
+  saveCurrentMenu(currentMenu);
+  renderMenu(currentMenu);
+}
+
+/** 「履歴を消す」ボタンが押されたとき */
+function onClickClearHistory() {
+  if (!confirm('過去の献立履歴をすべて削除しますか？\n（現在の献立はそのまま残ります）')) return;
+  localStorage.removeItem(KEY_HISTORY);
+  updateHistoryInfo();
+  alert('履歴を削除しました。\n次回の献立生成から過去の重複回避がリセットされます。');
+}
+
+// ============================================================
+// 自分の献立追加機能
+// ============================================================
+
+/**
+ * 「自分の献立を追加・管理」エリアの折りたたみ制御
+ */
+function toggleCustomSection() {
+  const content = document.getElementById('customContent');
+  const btn     = document.querySelector('.btn-toggle-custom');
+  const isOpen  = content.classList.contains('is-open');
+
+  if (isOpen) {
+    content.classList.remove('is-open');
+    btn.textContent = '＋ 自分の献立を追加・管理';
+  } else {
+    content.classList.add('is-open');
+    btn.textContent = '－ 自分の献立を追加・管理';
+    renderCustomRecipeList(); // 開くたびに最新を表示
+  }
+}
+
+/**
+ * 出典種別セレクトの変更に応じてUI表示を切り替える
+ * - サイト: URL欄を「URL」として表示
+ * - 本: URL欄を「ページ数」として表示
+ * - オリジナル: URL欄を非表示
+ */
+function onChangeSourceType() {
+  const sourceType    = document.getElementById('cf-source-type').value;
+  const urlRow        = document.getElementById('cf-url-row');
+  const urlLabel      = document.getElementById('cf-url-label');
+  const urlInput      = document.getElementById('cf-url');
+  const snLabel       = document.getElementById('cf-source-name-label');
+  const snRow         = document.getElementById('cf-source-name-row');
+
+  if (sourceType === 'サイト') {
+    urlRow.style.display    = '';
+    urlLabel.textContent    = 'URL';
+    urlInput.placeholder    = '例：https://cookpad.com/jp/recipes/12345678';
+    snLabel.textContent     = 'サイト名';
+    snRow.style.display     = '';
+  } else if (sourceType === '本') {
+    urlRow.style.display    = '';
+    urlLabel.textContent    = 'ページ数';
+    urlInput.placeholder    = '例：42';
+    snLabel.textContent     = '本のタイトル';
+    snRow.style.display     = '';
+  } else {
+    // オリジナル
+    urlRow.style.display    = 'none';
+    snLabel.textContent     = '覚書（任意）';
+    snRow.style.display     = '';
+  }
+}
+
+/**
+ * 食材行を1行追加する
+ */
+function onAddIngredientRow() {
+  const container = document.getElementById('cf-ingredients');
+
+  // 「食材を追加」を促すプレースホルダーがあれば削除
+  const empty = container.querySelector('.ing-empty');
+  if (empty) empty.remove();
+
+  const row = document.createElement('div');
+  row.className = 'ingredient-row';
+  row.innerHTML = `
+    <input type="text"   class="form-input ing-name"   placeholder="食材名（例：玉ねぎ）">
+    <input type="number" class="form-input ing-amount"  placeholder="数量" min="1" step="1" value="1">
+    <input type="text"   class="form-input ing-unit"    placeholder="単位（例：個）" inputmode="text" autocomplete="off" lang="ja">
+    <button type="button" class="btn-del-row" onclick="onDeleteIngredientRow(this)" title="この行を削除">✕</button>
+  `;
+  container.appendChild(row);
+  // 新しく追加した食材名フィールドにフォーカス
+  row.querySelector('.ing-name').focus();
+}
+
+/**
+ * 食材行を1行削除する
+ * @param {HTMLElement} btn - 削除ボタン要素
+ */
+function onDeleteIngredientRow(btn) {
+  const row       = btn.closest('.ingredient-row');
+  const container = document.getElementById('cf-ingredients');
+  row.remove();
+
+  // 全行が消えた場合にプレースホルダーを戻す
+  if (container.querySelectorAll('.ingredient-row').length === 0) {
+    container.innerHTML = '<p class="ing-empty">「食材を追加」ボタンで食材を登録できます</p>';
+  }
+}
+
+/**
+ * 食材行の入力内容を配列にまとめて返す
+ * @returns {Array<{name:string, amount:number, unit:string}>}
+ */
+function collectIngredientRows() {
+  const rows   = document.querySelectorAll('#cf-ingredients .ingredient-row');
+  const result = [];
+  rows.forEach(row => {
+    const name   = (row.querySelector('.ing-name')?.value   || '').trim();
+    const amount = parseFloat(row.querySelector('.ing-amount')?.value) || 0;
+    const unit   = (row.querySelector('.ing-unit')?.value   || '').trim();
+    if (name) {
+      result.push({ name, amount, unit });
+    }
+  });
+  return result;
+}
+
+/**
+ * 既存の食材リストでフォームの食材行を再構築する
+ * 編集時に呼び出す
+ * @param {Array} ingredients
+ */
+function populateIngredientRows(ingredients) {
+  const container = document.getElementById('cf-ingredients');
+  container.innerHTML = '';
+
+  if (!ingredients || ingredients.length === 0) {
+    container.innerHTML = '<p class="ing-empty">「食材を追加」ボタンで食材を登録できます</p>';
+    return;
+  }
+
+  ingredients.forEach(ing => {
+    const row = document.createElement('div');
+    row.className = 'ingredient-row';
+    row.innerHTML = `
+      <input type="text"   class="form-input ing-name"   placeholder="食材名（例：玉ねぎ）"
+             value="${escHtml(ing.name || '')}">
+      <input type="number" class="form-input ing-amount"  placeholder="数量" min="1" step="1"
+             value="${escHtml(String(ing.amount ?? '1'))}">
+      <input type="text"   class="form-input ing-unit"    placeholder="単位（例：個）"
+             inputmode="text" autocomplete="off" lang="ja"
+             value="${escHtml(ing.unit || '')}">
+      <button type="button" class="btn-del-row" onclick="onDeleteIngredientRow(this)" title="この行を削除">✕</button>
+    `;
+    container.appendChild(row);
+  });
+}
+
+/**
+ * フォームを初期状態にクリアする
+ * 新規登録モードに戻す
+ */
+function onClearCustomForm() {
+  editingCustomId = null;
+
+  document.getElementById('cf-name').value        = '';
+  document.getElementById('cf-type').value        = '主菜';
+  document.getElementById('cf-cuisine').value     = '';
+  document.getElementById('cf-source-type').value = 'サイト';
+  document.getElementById('cf-source-name').value = '';
+  document.getElementById('cf-url').value         = '';
+  document.getElementById('cf-ingredients').innerHTML =
+    '<p class="ing-empty">「食材を追加」ボタンで食材を登録できます</p>';
+
+  document.getElementById('cf-submit-btn').style.display = '';
+  document.getElementById('cf-update-btn').style.display = 'none';
+
+  onChangeSourceType(); // UI状態をリセット
+}
+
+/**
+ * カスタムレシピを新規登録する
+ */
+function onSubmitCustomRecipe() {
+  const name = document.getElementById('cf-name').value.trim();
+  if (!name) {
+    alert('料理名を入力してください');
+    document.getElementById('cf-name').focus();
+    return;
+  }
+
+  const type       = document.getElementById('cf-type').value;
+  const cuisine    = document.getElementById('cf-cuisine').value || null;
+  const sourceType = document.getElementById('cf-source-type').value;
+  const sourceName = document.getElementById('cf-source-name').value.trim();
+  const urlOrPage  = document.getElementById('cf-url').value.trim();
+  const ingredients = collectIngredientRows();
+
+  const newRecipe = {
+    id:          generateCustomId(),
+    name,
+    type,
+    cuisine,
+    sourceType,
+    sourceName,
+    urlOrPage,
+    site:        sourceName,      // 既存コードとの互換性
+    recipeUrl:   sourceType === 'サイト' ? urlOrPage : '',
+    protein:     autoDetectProtein(ingredients),
+    ingredients,
+    fried:       false,
+    isCustom:    true,
+    tags:        ['カスタム'],
+    createdAt:   new Date().toISOString(),
+    updatedAt:   new Date().toISOString()
+  };
+
+  const customs = getCustomRecipes();
+  customs.push(newRecipe);
+  saveCustomRecipes(customs);
+
+  renderCustomRecipeList();
+  onClearCustomForm();
+  alert(`「${name}」を登録しました！\n次回の献立作成からこの料理が候補に加わります。`);
+}
+
+/**
+ * カスタムレシピを更新する（編集確定）
+ */
+function onUpdateCustomRecipe() {
+  if (!editingCustomId) return;
+
+  const name = document.getElementById('cf-name').value.trim();
+  if (!name) {
+    alert('料理名を入力してください');
+    document.getElementById('cf-name').focus();
+    return;
+  }
+
+  const type       = document.getElementById('cf-type').value;
+  const cuisine    = document.getElementById('cf-cuisine').value || null;
+  const sourceType = document.getElementById('cf-source-type').value;
+  const sourceName = document.getElementById('cf-source-name').value.trim();
+  const urlOrPage  = document.getElementById('cf-url').value.trim();
+  const ingredients = collectIngredientRows();
+
+  const customs = getCustomRecipes();
+  const idx     = customs.findIndex(r => r.id === editingCustomId);
+
+  if (idx === -1) {
+    alert('更新対象が見つかりません。一覧を確認してください。');
+    return;
+  }
+
+  customs[idx] = {
+    ...customs[idx],
+    name,
+    type,
+    cuisine,
+    sourceType,
+    sourceName,
+    urlOrPage,
+    site:        sourceName,
+    recipeUrl:   sourceType === 'サイト' ? urlOrPage : '',
+    protein:     autoDetectProtein(ingredients),
+    ingredients,
+    updatedAt:   new Date().toISOString()
+  };
+
+  saveCustomRecipes(customs);
+  renderCustomRecipeList();
+  onClearCustomForm();
+  alert(`「${name}」を更新しました！`);
+}
+
+/**
+ * 指定IDのカスタムレシピをフォームに読み込んで編集モードにする
+ * @param {string} id
+ */
+function onEditCustomRecipe(id) {
+  const customs = getCustomRecipes();
+  const recipe  = customs.find(r => r.id === id);
+  if (!recipe) return;
+
+  editingCustomId = id;
+
+  document.getElementById('cf-name').value        = recipe.name        || '';
+  document.getElementById('cf-type').value        = recipe.type        || '主菜';
+  document.getElementById('cf-cuisine').value     = recipe.cuisine     || '';
+  document.getElementById('cf-source-type').value = recipe.sourceType  || 'サイト';
+  document.getElementById('cf-source-name').value = recipe.sourceName  || '';
+  document.getElementById('cf-url').value         = recipe.urlOrPage   || '';
+
+  onChangeSourceType(); // UIをソースタイプに合わせる
+  populateIngredientRows(recipe.ingredients || []);
+
+  // ボタン切り替え
+  document.getElementById('cf-submit-btn').style.display = 'none';
+  document.getElementById('cf-update-btn').style.display = '';
+
+  // カスタムエリアが閉じていたら開く
+  const content = document.getElementById('customContent');
+  if (!content.classList.contains('is-open')) {
+    toggleCustomSection();
+  }
+
+  // フォームへスクロール
+  document.getElementById('customSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * 指定IDのカスタムレシピを削除する
+ * @param {string} id
+ */
+function onDeleteCustomRecipe(id) {
+  const customs = getCustomRecipes();
+  const recipe  = customs.find(r => r.id === id);
+  if (!recipe) return;
+
+  if (!confirm(`「${recipe.name}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+
+  const updated = customs.filter(r => r.id !== id);
+  saveCustomRecipes(updated);
+  renderCustomRecipeList();
+
+  // 編集中のレシピを削除した場合はフォームをクリア
+  if (editingCustomId === id) {
+    onClearCustomForm();
+  }
+}
+
+/**
+ * 登録済みカスタムレシピの一覧を描画する
+ */
+function renderCustomRecipeList() {
+  const container = document.getElementById('customRecipeList');
+  const customs   = getCustomRecipes();
+
+  if (customs.length === 0) {
+    container.innerHTML = '<p class="shop-empty">まだ登録されていません</p>';
+    return;
+  }
+
+  const BADGE_MAP = { '主菜': 'badge-main', '副菜': 'badge-side', '汁物': 'badge-soup' };
+
+  const html = customs.map(r => {
+    const badge = BADGE_MAP[r.type] || 'badge-main';
+
+    // 出典情報の表示テキスト生成
+    let sourceHtml = '';
+    if (r.sourceType === 'サイト') {
+      const siteName = escHtml(r.sourceName || '');
+      if (r.urlOrPage) {
+        const disp = r.urlOrPage.length > 40 ? r.urlOrPage.slice(0, 40) + '…' : r.urlOrPage;
+        sourceHtml = `${siteName} / <a href="${escHtml(r.urlOrPage)}" target="_blank" rel="noopener noreferrer">${escHtml(disp)}</a>`;
+      } else {
+        sourceHtml = siteName;
+      }
+    } else if (r.sourceType === '本') {
+      const page = r.urlOrPage ? ` / p.${escHtml(r.urlOrPage)}` : '';
+      sourceHtml = `${escHtml(r.sourceName || '')}${page}`;
+    } else {
+      sourceHtml = 'オリジナル';
+      if (r.sourceName) sourceHtml += ` (${escHtml(r.sourceName)})`;
+    }
+
+    // 食材リストの簡易表示
+    const ingList = (r.ingredients || [])
+      .map(ing => `${escHtml(ing.name)} ${escHtml(String(ing.amount))}${escHtml(ing.unit)}`)
+      .join('、');
+
+    // 更新日時
+    const updatedStr = r.updatedAt
+      ? new Date(r.updatedAt).toLocaleDateString('ja-JP')
+      : '';
+
+    return `
+      <div class="custom-item">
+        <div class="custom-item-header">
+          <span class="dish-type-badge ${badge}">${escHtml(r.type)}</span>
+          <span class="custom-item-name">${escHtml(r.name)}</span>
+        </div>
+        <div class="custom-item-meta">
+          <span class="custom-item-source">${escHtml(r.sourceType)}: ${sourceHtml}</span>
+          ${ingList
+            ? `<span class="custom-item-ings">食材: ${ingList}</span>`
+            : ''}
+          ${updatedStr
+            ? `<span style="color:#bbb;font-size:0.72rem">更新: ${escHtml(updatedStr)}</span>`
+            : ''}
+        </div>
+        <div class="custom-item-actions">
+          <button class="btn-edit-custom"
+                  onclick="onEditCustomRecipe('${escHtml(r.id)}')">編集</button>
+          <button class="btn-del-custom"
+                  onclick="onDeleteCustomRecipe('${escHtml(r.id)}')">削除</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+// ============================================================
+// 差し替えモーダル機能
+// ============================================================
+
+/**
+ * モーダルの状態
+ * replacingDayIndex : 差し替え中の曜日インデックス (0=月〜4=金)
+ * pendingMain/Side/Soup : モーダル上で選択中のレシピオブジェクト
+ *                         soup は null = 汁物なし
+ */
+let replacingDayIndex  = null;
+let replacingCourse    = 'all'; // 'all' | 'main' | 'side' | 'soup'
+let replacingDishIndex = 0;     // -1 = add new, 0+ = replace at index
+let pendingMain  = null;
+let pendingSide  = null;
+let pendingSoup  = null; // null = 「なし」
+
+/**
+ * 差し替えモーダルを開く
+ * @param {number} dayIndex
+ * @param {string} courseKey - 'all' | 'main' | 'side' | 'soup'
+ */
+function openReplaceModal(dayIndex, courseKey = 'all', dishIndex = 0) {
+  replacingDayIndex  = dayIndex;
+  replacingCourse    = courseKey;
+  replacingDishIndex = dishIndex;
+
+  const day = currentMenu.days[dayIndex];
+  if (day && day.cleared) {
+    pendingMain = null;
+    pendingSide = null;
+    pendingSoup = null;
+  } else if (day) {
+    // 差し替え対象に応じて初期選択を設定
+    if (courseKey === 'main') {
+      pendingMain = dishIndex >= 0 ? ((day.mains || [])[dishIndex] || null) : null;
+      pendingSide = (day.sides || [])[0] || null;
+      pendingSoup = day.soup || null;
+    } else if (courseKey === 'side') {
+      pendingMain = (day.mains || [])[0] || null;
+      pendingSide = dishIndex >= 0 ? ((day.sides || [])[dishIndex] || null) : null;
+      pendingSoup = day.soup || null;
+    } else {
+      // 'all' or 'soup'
+      pendingMain = (day.mains || [])[0] || null;
+      pendingSide = (day.sides || [])[0] || null;
+      pendingSoup = day.soup || null;
+    }
+  } else {
+    pendingMain = null;
+    pendingSide = null;
+    pendingSoup = null;
+  }
+
+  const fixedSideOnOpen = getFixedSide(pendingMain, getAllRecipes());
+  if (fixedSideOnOpen) pendingSide = fixedSideOnOpen;
+
+  const COURSE_NAMES = { all: '献立', main: '主菜', side: '副菜', soup: '汁物' };
+  const isAdd = dishIndex < 0;
+  document.getElementById('modalTitle').textContent = isAdd
+    ? `${DAYS[dayIndex]}に${COURSE_NAMES[courseKey] || '料理'}を追加`
+    : `${DAYS[dayIndex]}の${COURSE_NAMES[courseKey] || '献立'}を差し替え`;
+  const applyBtn = document.getElementById('applyReplaceBtn');
+  if (applyBtn) {
+    if (isAdd) {
+      applyBtn.textContent = `${COURSE_NAMES[courseKey]}を追加`;
+    } else {
+      applyBtn.textContent = courseKey === 'all'
+        ? 'この内容で差し替え'
+        : `${COURSE_NAMES[courseKey]}を差し替え`;
+    }
+  }
+
+  // 候補を構築して描画
+  renderModalBody(dayIndex);
+
+  // モーダルを表示
+  document.getElementById('replaceModal').style.display = 'flex';
+  document.body.style.overflow = 'hidden'; // 背景スクロール防止
+}
+
+/**
+ * モーダルを閉じる
+ */
+function closeReplaceModal() {
+  document.getElementById('replaceModal').style.display = 'none';
+  document.body.style.overflow = '';
+  replacingDayIndex = null;
+  replacingCourse   = 'all';
+}
+
+/**
+ * オーバーレイ（背景暗転部分）クリックで閉じる
+ * @param {MouseEvent} event
+ */
+function onClickModalOverlay(event) {
+  if (event.target === document.getElementById('replaceModal')) {
+    closeReplaceModal();
+  }
+}
+
+/**
+ * 指定曜日の差し替え候補を構築する
+ *
+ * 自動生成ルール用（main/side/soup）：
+ *  - 揚げ物除外・水曜は魚のみ・tuesdayOnly曜日制限あり
+ *
+ * 手動フリー選択用（free）：
+ *  - 揚げ物・汁物を除外するのみ。水曜の魚制限なし。
+ *  - 火曜以外のtuesdayOnly（カレー等）は除外を維持。
+ *
+ * @param {number} dayIndex
+ * @returns {{ main, side, soup, free }} 各 {auto:[], custom:[]}
+ */
+function buildReplaceCandidates(dayIndex) {
+  const all = getAllRecipes();
+
+  const sortByName = arr => [...arr].sort((a, b) =>
+    a.name.localeCompare(b.name, 'ja')
+  );
+
+  // --- 手動選択用：主菜候補 ---
+  // 候補一覧では曜日制限をかけない。
+  // カレー・シチューの火曜限定や水曜の魚固定は、自動献立生成時だけ適用する。
+  const mainAll = all.filter(r => r.type === '主菜' && !r.fried);
+  const mainFiltered = mainAll;
+
+  // --- 自動生成用：副菜候補 ---
+  const sideFiltered = all.filter(r => r.type === '副菜' && !r.fried);
+
+  // --- 汁物候補（自動/手動共用） ---
+  const soupFiltered = all.filter(r => r.type === '汁物' && !r.fried);
+
+  // 自作メニュー名セット（同名の組み込みレシピを除外するため）
+  const customMainNames = new Set(mainFiltered.filter(r => r.isCustom).map(r => normalizeMenuName(r.name)));
+  const customSideNames = new Set(sideFiltered.filter(r => r.isCustom).map(r => normalizeMenuName(r.name)));
+  const customSoupNames = new Set(soupFiltered.filter(r => r.isCustom).map(r => normalizeMenuName(r.name)));
+
+  // --- 手動フリー候補（主菜＋副菜を統合・曜日制限なし） ---
+  // 揚げ物と汁物だけを除外し、カレー・シチューも毎日選べるようにする。
+  const freeBase = all.filter(r => r.type !== '汁物' && !r.fried);
+  const freeFiltered = freeBase;
+  const customFreeNames = new Set(freeFiltered.filter(r => r.isCustom).map(r => normalizeMenuName(r.name)));
+
+  return {
+    main: {
+      auto:   sortByName(mainFiltered.filter(r => !r.isCustom && !customMainNames.has(normalizeMenuName(r.name)))),
+      custom: sortByName(mainFiltered.filter(r =>  r.isCustom))
+    },
+    side: {
+      auto:   sortByName(sideFiltered.filter(r => !r.isCustom && !customSideNames.has(normalizeMenuName(r.name)))),
+      custom: sortByName(sideFiltered.filter(r =>  r.isCustom))
+    },
+    soup: {
+      auto:   sortByName(soupFiltered.filter(r => !r.isCustom && !customSoupNames.has(normalizeMenuName(r.name)))),
+      custom: sortByName(soupFiltered.filter(r =>  r.isCustom))
+    },
+    free: {
+      auto:   sortByName(freeFiltered.filter(r => !r.isCustom && !customFreeNames.has(normalizeMenuName(r.name)))),
+      custom: sortByName(freeFiltered.filter(r =>  r.isCustom))
+    }
+  };
+}
+
+/**
+ * レシピの出典情報を短い文字列で返す（モーダルの補足表示用）
+ * @param {object} recipe
+ * @returns {string}
+ */
+function getRecipeMeta(recipe) {
+  if (recipe.sourceType === 'サイト') {
+    return recipe.sourceName ? `サイト: ${recipe.sourceName}` : 'サイト';
+  }
+  if (recipe.sourceType === '本') {
+    const pg = recipe.urlOrPage ? ` p.${recipe.urlOrPage}` : '';
+    return `本: ${recipe.sourceName || ''}${pg}`;
+  }
+  if (recipe.sourceType === 'オリジナル') {
+    return 'オリジナル';
+  }
+  // 既存レシピ
+  return recipe.site || '';
+}
+
+/**
+ * 1コース分の候補リストHTMLを生成する
+ *
+ * @param {string}  courseKey   - 'main' | 'side' | 'soup'
+ * @param {object}  candidates  - { auto:[], custom:[] }
+ * @param {object|null} currentRecipe - 現在その日に設定されているレシピ（または null）
+ * @param {boolean} allowNone   - 「なし」選択肢を表示するか（汁物のみ true）
+ */
+function buildCandidateListHtml(courseKey, candidates, currentRecipe, allowNone) {
+  const currentId = currentRecipe?.id || null;
+  let html = '';
+
+  /**
+   * 1アイテム分のHTMLを返す
+   * @param {object|null} recipe - null の場合は「なし」アイテム
+   */
+  function itemHtml(recipe) {
+    const isNone    = (recipe === null);
+    const id        = isNone ? '__none__' : recipe.id;
+    const name      = isNone ? '（なし）' : recipe.name;
+    const isCustom  = !isNone && recipe.isCustom;
+    const isCurrent = !isNone && id === currentId;
+    // 現在の選択状態を参照
+    const selectedId = courseKey === 'main' ? pendingMain?.id
+                     : courseKey === 'side' ? pendingSide?.id
+                     : (pendingSoup === null ? '__none__' : pendingSoup?.id);
+    const isSelected = isNone ? (selectedId === '__none__')
+                               : (selectedId === id);
+
+    // クラス組み立て
+    let cls = 'replace-item';
+    if (isSelected) cls += ' is-selected';
+    if (isCurrent && !isSelected) cls += ' is-current';
+    if (isNone) cls += ' replace-item-none';
+
+    // バッジ
+    const customBadge  = isCustom  ? '<span class="badge-custom-sm">自作</span>' : '';
+    const currentBadge = isCurrent ? '<span class="badge-current-sm">現在</span>' : '';
+    // 種別バッジ（フリー選択モードで主菜/副菜を識別しやすくするため）
+    const typeClass = !isNone ? (recipe.type === '主菜' ? 'badge-type-main'
+                              : recipe.type === '副菜' ? 'badge-type-side'
+                              : recipe.type === '汁物' ? 'badge-type-soup' : '') : '';
+    const typeBadge = typeClass
+      ? `<span class="badge-type-sm ${typeClass}">${escHtml(recipe.type)}</span>`
+      : '';
+
+    // 補足情報（サイト名など）
+    const meta = !isNone ? escHtml(getRecipeMeta(recipe)) : '';
+
+    return `
+      <div class="${cls}"
+           onclick="onSelectCandidate('${escHtml(courseKey)}','${escHtml(id)}')"
+           data-course="${escHtml(courseKey)}"
+           data-id="${escHtml(id)}">
+        <div class="replace-item-check">✓</div>
+        <div class="replace-item-info">
+          <div class="replace-item-name">${escHtml(name)}</div>
+          ${meta ? `<div class="replace-item-meta">${meta}</div>` : ''}
+        </div>
+        ${typeBadge}
+        ${customBadge}
+        ${currentBadge}
+      </div>`;
+  }
+
+  // 「なし」選択肢（汁物のみ）
+  if (allowNone) {
+    html += itemHtml(null);
+  }
+
+  // 自動候補グループ
+  if (candidates.auto.length > 0) {
+    if (candidates.custom.length > 0 || allowNone) {
+      html += `<div class="replace-group-label">自動候補</div>`;
+    }
+    candidates.auto.forEach(r => { html += itemHtml(r); });
+  }
+
+  // 自分の献立グループ
+  if (candidates.custom.length > 0) {
+    html += `<div class="replace-group-label">自分の献立</div>`;
+    candidates.custom.forEach(r => { html += itemHtml(r); });
+  }
+
+  return html;
+}
+
+/**
+ * モーダルの本体（コース別候補リスト）を描画する
+ * @param {number} dayIndex
+ */
+function renderModalBody(dayIndex) {
+  const candidates = buildReplaceCandidates(dayIndex);
+  const day        = currentMenu.days[dayIndex];
+
+  const COURSE_LABELS = {
+    main: '主菜',
+    side: '副菜',
+    soup: '汁物'
+  };
+
+  // 固定副菜があるか事前チェック（副菜セクションの通知表示に使用）
+  const allForModal  = getAllRecipes();
+  const fixedSideNow = getFixedSide(pendingMain, allForModal);
+
+  // 部分差し替えモード：対象コース以外の現在値をコンテキストバーに表示
+  let contextBar = '';
+  if (replacingCourse !== 'all' && day && !day.cleared) {
+    const locked = ['main', 'side', 'soup'].filter(k => k !== replacingCourse);
+    const parts = locked.map(k => {
+      const dish = (k === 'main' ? pendingMain : k === 'side' ? pendingSide : pendingSoup);
+      if (!dish) return null;
+      return `<span><span class="replace-context-label">${COURSE_LABELS[k]}</span>${escHtml(dish.name)}</span>`;
+    }).filter(Boolean);
+    if (parts.length > 0) {
+      contextBar = `<div class="replace-context">${parts.join('<span style="margin:0 6px;color:#ccc">｜</span>')}</div>`;
+    }
+  }
+
+  // 手動で主菜・副菜を1品差し替え/追加するときはフリー選択モード
+  // → 水曜魚制限なし・主菜副菜の区別なし・種別バッジで識別
+  const isFreePick = (replacingCourse === 'main' || replacingCourse === 'side');
+
+  // 表示するコースを決定（'all' なら全コース、フリーモードなら仮想'free'キー、それ以外は指定コースのみ）
+  const coursesToShow = replacingCourse === 'all'
+    ? ['main', 'side', 'soup']
+    : [replacingCourse];
+
+  const sections = coursesToShow.map(key => {
+    // フリーモード（main/side の手動差し替え）はフリー候補を使う
+    const cands = isFreePick ? candidates.free : candidates[key];
+
+    const currentDish = (day && !day.cleared)
+      ? (key === 'main' ? ((day.mains || [])[replacingDishIndex >= 0 ? replacingDishIndex : 0] || null)
+       : key === 'side' ? ((day.sides || [])[replacingDishIndex >= 0 ? replacingDishIndex : 0] || null)
+       : (day.soup || null))
+      : null;
+    const allowNone   = (key === 'soup');
+
+    // 副菜が固定の場合は通知バーを表示（固定ルールは手動でも維持）
+    let fixedNotice = '';
+    if (key === 'side' && fixedSideNow) {
+      fixedNotice = `
+        <div class="fixed-side-notice">
+          🔒 この主菜のため副菜は固定です：<strong>${escHtml(fixedSideNow.name)}</strong>
+        </div>`;
+    }
+
+    const listHtml = buildCandidateListHtml(
+      key, cands, currentDish, allowNone
+    );
+
+    // セクションタイトル：全コース表示時は「主菜」「副菜」「汁物」、フリーモードは説明を追加
+    let titleHtml = '';
+    if (replacingCourse === 'all') {
+      titleHtml = `<div class="replace-course-title">${COURSE_LABELS[key]}</div>`;
+    } else if (isFreePick) {
+      titleHtml = `<div class="replace-course-title">${COURSE_LABELS[key]}欄 — 主菜・副菜どちらでも選択できます</div>`;
+    }
+
+    return `
+      <div class="replace-course-section">
+        ${titleHtml}
+        ${fixedNotice}
+        <div class="replace-candidates" id="candidates-${key}">
+          ${listHtml}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('modalBody').innerHTML = contextBar + sections;
+}
+
+/**
+ * モーダル内で候補をクリックしたときに呼ばれる
+ * 選択状態を更新し、ハイライトを付け替える
+ *
+ * @param {string} courseKey - 'main' | 'side' | 'soup'
+ * @param {string} id        - レシピID or '__none__'
+ */
+function onSelectCandidate(courseKey, id) {
+  // 全レシピから ID で検索
+  const all    = getAllRecipes();
+  const recipe = (id === '__none__') ? null : (all.find(r => r.id === id) || null);
+
+  if (courseKey === 'main') {
+    pendingMain = recipe;
+    // 主菜変更時に固定副菜ルールを適用し、副菜を自動セット
+    const newFixed = getFixedSide(recipe, all);
+    if (newFixed) pendingSide = newFixed;
+    // モーダル全体を再描画して固定副菜通知・選択状態を更新
+    renderModalBody(replacingDayIndex);
+    return;
+
+  } else if (courseKey === 'side') {
+    // 固定副菜がある場合はクリックを無視（変更不可）
+    if (getFixedSide(pendingMain, all)) return;
+    pendingSide = recipe;
+
+  } else {
+    pendingSoup = recipe;
+  }
+
+  // そのコースの全アイテムのis-selectedを付け替え
+  const container = document.getElementById(`candidates-${courseKey}`);
+  if (!container) return;
+
+  container.querySelectorAll('.replace-item').forEach(el => {
+    el.classList.toggle('is-selected', el.dataset.id === id);
+  });
+}
+
+/**
+ * 「差し替え」ボタンを押したときに呼ばれる
+ * 選択中のレシピで currentMenu を更新し、画面を再描画する
+ */
+function applyReplaceSelection() {
+  if (replacingDayIndex === null || !currentMenu) {
+    closeReplaceModal();
+    return;
+  }
+
+  const allR = getAllRecipes();
+  const idx  = replacingDayIndex;
+  const isAdd = replacingDishIndex < 0;
+
+  if (replacingCourse === 'all') {
+    // ── 全部差し替え ──
+    if (!pendingMain) { alert('主菜を選んでください'); return; }
+    const fixedSideFinal = getFixedSide(pendingMain, allR);
+    if (fixedSideFinal) pendingSide = fixedSideFinal;
+    if (!pendingSide) { alert('副菜を選んでください'); return; }
+    currentMenu.days[idx] = {
+      mains: [pendingMain],
+      sides: [pendingSide],
+      soup:  pendingSoup
+    };
+
+  } else {
+    const day = currentMenu.days[idx];
+
+    // cleared日への差し替えは全部差し替えとして扱う
+    if (!day || day.cleared) {
+      if (!pendingMain) { alert('主菜を選んでください'); return; }
+      const fs = getFixedSide(pendingMain, allR);
+      if (fs) pendingSide = fs;
+      if (!pendingSide) { alert('副菜を選んでください'); return; }
+      currentMenu.days[idx] = {
+        mains: [pendingMain],
+        sides: [pendingSide],
+        soup:  pendingSoup
+      };
+    } else {
+      // mains/sides 配列を持っていない旧データを安全に移行
+      if (!day.mains) day.mains = day.main ? [day.main] : [];
+      if (!day.sides) day.sides = day.side ? [day.side] : [];
+
+      if (replacingCourse === 'main') {
+        if (!pendingMain) { alert('主菜を選んでください'); return; }
+        if (isAdd) {
+          day.mains.push(pendingMain);
+        } else {
+          day.mains[replacingDishIndex] = pendingMain;
+        }
+        // 主菜変更時は固定副菜ルールを適用（最初の主菜基準）
+        const fs = getFixedSide(day.mains[0], allR);
+        if (fs) day.sides = [fs];
+
+      } else if (replacingCourse === 'side') {
+        if (!pendingSide) { alert('副菜を選んでください'); return; }
+        if (isAdd) {
+          day.sides.push(pendingSide);
+        } else {
+          day.sides[replacingDishIndex] = pendingSide;
+        }
+
+      } else if (replacingCourse === 'soup') {
+        day.soup = pendingSoup;
+      }
+    }
+  }
+
+  saveCurrentMenu(currentMenu);
+  renderMenu(currentMenu);
+  closeReplaceModal();
+}
+
+// ============================================================
+// 起動時の初期化処理
+// ============================================================
+(function init() {
+  // 買い物リスト上書き情報を復元（renderShoppingList より先に読む）
+  shoppingOverrides = loadShoppingOverrides();
+
+  // ページ読み込み時にlocalStorageから前回の献立を復元
+  const saved = loadSavedMenu();
+  if (saved) {
+    currentMenu = saved;
+    renderMenu(currentMenu);
+  } else {
+    updateHistoryInfo();
+  }
+
+  // 追加で買うものを復元（献立有無に関わらず常にリストを描画）
+  extraItems = loadExtraItems();
+  if (!currentMenu) {
+    renderShoppingList(null); // 分類ヘッダー＋追加ボタンを表示するため常に呼ぶ
+  }
+
+  // 出典種別UIの初期状態をセット
+  onChangeSourceType();
+})();
+</script>
+</body>
+</html>
